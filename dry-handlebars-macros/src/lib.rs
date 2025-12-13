@@ -3,11 +3,13 @@ mod hbs;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fs;
 use std::path::Path;
 use syn::{LitStr, parse_macro_input};
 use walkdir::WalkDir;
+use crate::hbs::compiler::{Compiler, Options};
+use crate::hbs::block::add_builtins;
 
 #[proc_macro]
 pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
@@ -27,7 +29,7 @@ pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
     }
 
     let mut structs = Vec::new();
-    let re = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}").unwrap();
+    let re = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+)(?:[\.\[][a-zA-Z0-9_\.\[\]]*)?\s*\}\}").unwrap();
 
     for entry in WalkDir::new(&root_path) {
         let entry = match entry {
@@ -43,7 +45,27 @@ pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
 
             let path_str = path.to_string_lossy();
 
-            let content = fs::read_to_string(path).expect("Failed to read file");
+            let mut content = fs::read_to_string(path).expect("Failed to read file");
+
+            // Flatten nested variables: {{ obj.title }} -> {{ obj_title }}
+            let re_flatten = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\s*\}\}").unwrap();
+            content = re_flatten.replace_all(&content, |caps: &regex::Captures| {
+                let full_match = &caps[0];
+                let var_name = &caps[1];
+                let new_var_name = var_name.replace(".", "_");
+                full_match.replace(var_name, &new_var_name)
+            }).to_string();
+
+            // Compile template
+            let mut block_map = HashMap::new();
+            add_builtins(&mut block_map);
+            let options = Options {
+                root_var_name: Some("self"),
+                write_var_name: "f",
+            };
+            let compiler = Compiler::new(options, block_map);
+            let rust_code = compiler.compile(&content).expect("Failed to compile template");
+            let render_body: proc_macro2::TokenStream = rust_code.code.parse().expect("Failed to parse generated code");
 
             // Extract variables
             let mut vars = HashSet::new();
@@ -71,20 +93,17 @@ pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
                 quote! { #name }
             });
 
-            let template_str = &content;
 
             structs.push(quote! {
                 // ensure the compiler is aware the output is linked to the source so that any changes
                 // to the hbs file will trigger a recompilation
                 const _: &[u8] = include_bytes!(#path_str);
 
-                #[derive(dry_handlebars::serde::Serialize)]
-                #[serde(crate = "dry_handlebars::serde")]
                 pub struct #struct_name<#(#type_params),*> {
                     #(#field_defs),*
                 }
 
-                impl<#(#type_params: dry_handlebars::serde::Serialize),*> #struct_name<#(#type_params),*> {
+                impl<#(#type_params: std::fmt::Display),*> #struct_name<#(#type_params),*> {
                     pub fn new(#(#new_args),*) -> Self {
                         Self {
                             #(#field_inits),*
@@ -92,10 +111,14 @@ pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
                     }
 
                     pub fn render(&self) -> String {
-                        use dry_handlebars::handlebars::Handlebars;
-                        let mut reg = Handlebars::new();
-                        reg.register_template_string("template", #template_str).expect("Failed to register template");
-                        reg.render("template", &self).expect("Failed to render")
+                        use std::fmt::Write;
+                        let mut f = String::new();
+                        let mut render_inner = || -> std::fmt::Result {
+                            #render_body
+                            Ok(())
+                        };
+                        render_inner().unwrap();
+                        f
                     }
                 }
             });

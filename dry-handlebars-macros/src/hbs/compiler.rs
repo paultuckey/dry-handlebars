@@ -139,9 +139,9 @@ pub struct Rust{
 }
 
 /// Trait for HTML escaping
-pub static USE_AS_DISPLAY: &str = "AsDisplay";
+pub static USE_AS_DISPLAY: &str = "Display";
 /// Trait for raw HTML output
-pub static USE_AS_DISPLAY_HTML: &str = "AsDisplayHtml";
+pub static USE_AS_DISPLAY_HTML: &str = "Display";
 
 /// Helper for formatting use statements
 pub struct Uses<'a>{
@@ -591,12 +591,12 @@ impl Compiler {
                 pending.push(PendingWrite::Raw(prefix));
             }
             match expression_type{
-                ExpressionType::Raw => pending.push(Self::select_write(&expr, USE_AS_DISPLAY, ".as_display()")?),
+                ExpressionType::Raw => pending.push(Self::select_write(&expr, USE_AS_DISPLAY, "")?),
                 ExpressionType::HtmlEscaped => if *content == "else" {
                     self.commit_pending(&mut pending, &mut compile, &mut rust)?;
                     compile.handle_else(&expr, &mut rust)?
                 } else {
-                    pending.push(Self::select_write(&expr, USE_AS_DISPLAY_HTML, ".as_display_html()")?)
+                    pending.push(Self::select_write(&expr, USE_AS_DISPLAY_HTML, "")?)
                 },
                 ExpressionType::Open => {
                     self.commit_pending(&mut pending, &mut compile, &mut rust)?;
