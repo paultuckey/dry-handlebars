@@ -1,0 +1,10 @@
+[package]
+name = "dry-handlebars"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dry-handlebars-macros = { path = "../dry-handlebars-macros", version = "0.1.0" }
+handlebars = "6.2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
