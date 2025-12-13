@@ -1,15 +1,13 @@
-use dry_handlebars::dry_handlebars_directory;
 
-dry_handlebars_directory!("templates/");
-
+mod templates {
+    dry_handlebars::directory!("templates/");
+    dry_handlebars::file!("template/TodoEdit2.hbs");
+}
 
 fn main() {
-    let html = TodoEdit::new(42, "My Todo").render();
+    let html = templates::todo_edit(42, "My Todo").render();
     println!("{}", html);
 
-    struct StructExample {title: String}
-    let struct_example = StructExample { title: "example".to_owned() };
-    //let h2 = StructMembers::new(struct_example).render();
-
-
+    let html2 = templates::todo_edit2(43, "Single File Todo").render();
+    println!("{}", html2);
 }
