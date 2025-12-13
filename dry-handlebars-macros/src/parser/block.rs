@@ -1,3 +1,25 @@
+// MIT License
+//
+// Copyright (c) 2024 Jerome Johnson
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 //! Handlebars block parsing and compilation
 //!
 //! This module provides functionality for parsing and compiling Handlebars block helpers.
@@ -38,7 +60,7 @@
 //! assert_eq!(expr.expression_type, ExpressionType::Open);
 //! ```
 
-use crate::hbs::{compiler::{append_with_depth, Block, BlockFactory, BlockMap, Compile, Local, Rust}, error::{ParseError, Result}, expression::{Expression, ExpressionType}, expression_tokenizer::Token};
+use crate::parser::{compiler::{append_with_depth, Block, BlockFactory, BlockMap, Compile, Local, Rust}, error::{ParseError, Result}, expression::{Expression, ExpressionType}, expression_tokenizer::Token};
 
 /// Strips pipe characters from a token value
 fn strip_pipes<'a>(token: Token<'a>, expression: &Expression<'a>) -> Result<&'a str> {

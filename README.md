@@ -1,12 +1,10 @@
 # dry-handlebars
 
-Why oh why another templating library.
+Compile-time checked [Handlebars](https://handlebarsjs.com/) templates for Rust.
 
-Compile time, very strict.
+The template is the boss. Whatever the template wants, the code must provide.
 
-The template is god. Whatever the template wants, the code must provide.
-
-Building on the amazing [handlebars](https://github.com/sunng87/handlebars-rust) crate for rust.
+Based on the parser from [rusty-handlebars](https://github.com/h-i-v-e/rusty-handlebars).
 
 Take a directory of handlebars files, for example:
 
@@ -32,5 +30,13 @@ And any errors in passing data to the template are found at compile time.
 
 ## Features
 
-- Uses `Display` trait for variables
+Still in alpha stage, but features planned:
 
+- [x] Uses `Display` trait for variables
+- [x] Get a struct and a template function for a `str`
+- [x] For a single file
+- [x] A directory of templates
+- [x] Support for simple top level keys (e.g. `{{ todo_id }}`)
+- [ ] Support for block helpers (e.g. `{{#if ...}} ... {{/if}}`)
+- [ ] Support for for loops (e.g. `{{#each items}} ... {{/each}}`)
+- [ ] Support for nested keys (e.g. `{{ user.name }}`)

@@ -1,4 +1,4 @@
-mod hbs;
+mod parser;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -6,10 +6,10 @@ use regex::Regex;
 use std::collections::{HashSet, HashMap};
 use std::fs;
 use std::path::Path;
-use syn::{LitStr, parse_macro_input};
+use syn::{LitStr, parse_macro_input, parse::Parse, parse::ParseStream, Token};
 use walkdir::WalkDir;
-use crate::hbs::compiler::{Compiler, Options};
-use crate::hbs::block::add_builtins;
+use crate::parser::compiler::{Compiler, Options};
+use crate::parser::block::add_builtins;
 
 fn to_snake_case(s: &str) -> String {
     let mut result = String::new();
@@ -28,14 +28,11 @@ fn to_snake_case(s: &str) -> String {
     result
 }
 
-fn generate_code_for_file(path: &Path) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
-    let file_stem = path.file_stem().unwrap().to_string_lossy();
-    let struct_name_str = file_stem.replace("-", "_");
+fn generate_code_for_content(name: &str, content: &str, path_for_include: Option<&str>) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    let struct_name_str = name.replace("-", "_");
     let struct_name = format_ident!("{}", struct_name_str);
 
-    let path_str = path.to_string_lossy();
-
-    let mut content = fs::read_to_string(path).expect("Failed to read file");
+    let mut content = content.to_string();
 
     // Flatten nested variables: {{ obj.title }} -> {{ obj_title }}
     let re_flatten = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\s*\}\}").unwrap();
@@ -105,10 +102,18 @@ fn generate_code_for_file(path: &Path) -> (proc_macro2::TokenStream, proc_macro2
         }
     };
 
+    let include_bytes_stmt = if let Some(path_str) = path_for_include {
+        quote! {
+            // ensure the compiler is aware the output is linked to the source so that any changes
+            // to the hbs file will trigger a recompilation
+            const _: &[u8] = include_bytes!(#path_str);
+        }
+    } else {
+        quote! {}
+    };
+
     let struct_def = quote! {
-        // ensure the compiler is aware the output is linked to the source so that any changes
-        // to the hbs file will trigger a recompilation
-        const _: &[u8] = include_bytes!(#path_str);
+        #include_bytes_stmt
 
         pub struct #struct_name<#(#type_params),*> {
             #(#field_defs),*
@@ -135,6 +140,27 @@ fn generate_code_for_file(path: &Path) -> (proc_macro2::TokenStream, proc_macro2
     };
 
     (struct_def, function_def)
+}
+
+fn generate_code_for_file(path: &Path) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    let file_stem = path.file_stem().unwrap().to_string_lossy();
+    let path_str = path.to_string_lossy();
+    let content = fs::read_to_string(path).expect("Failed to read file");
+    generate_code_for_content(&file_stem, &content, Some(&path_str))
+}
+
+struct StrInput {
+    name: LitStr,
+    content: LitStr,
+}
+
+impl Parse for StrInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let name: LitStr = input.parse()?;
+        input.parse::<Token![,]>()?;
+        let content: LitStr = input.parse()?;
+        Ok(StrInput { name, content })
+    }
 }
 
 #[proc_macro]
@@ -197,6 +223,19 @@ pub fn dry_handlebars_file(input: TokenStream) -> TokenStream {
     }
 
     let (struct_def, function_def) = generate_code_for_file(&path);
+
+    let expanded = quote! {
+        #struct_def
+        #function_def
+    };
+
+    TokenStream::from(expanded)
+}
+
+#[proc_macro]
+pub fn dry_handlebars_str(input: TokenStream) -> TokenStream {
+    let StrInput { name, content } = parse_macro_input!(input as StrInput);
+    let (struct_def, function_def) = generate_code_for_content(&name.value(), &content.value(), None);
 
     let expanded = quote! {
         #struct_def
