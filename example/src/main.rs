@@ -1,4 +1,3 @@
-mod test;
 
 mod templates {
     dry_handlebars::directory!("templates/");
