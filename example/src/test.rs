@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod tests {
 
@@ -13,15 +12,64 @@ mod tests {
         );
     }
 
+    struct Person {
+        firstname: String,
+        lastname: String,
+    }
+
     #[test]
     fn path_expressions() {
         mod template {
-            dry_handlebars::str!("test", r#"{{person.firstname}} {{person.lastname}}"#);
+            dry_handlebars::str!(
+                "test",
+                r#"{{person.firstname}} {{person.lastname}}"#,
+                ("person", super::Person)
+            );
         }
-        assert_eq!(
-            template::test("King", "Tubby").render(),
-            "King Tubby"
-        );
+        let person = Person {
+            firstname: "King".to_string(),
+            lastname: "Tubby".to_string(),
+        };
+        assert_eq!(template::test(person).render(), "King Tubby");
     }
 
+    struct Author {
+        first_name: String,
+        last_name: String,
+    }
+
+    #[test]
+    fn if_helper() {
+        mod template {
+            dry_handlebars::str!(
+                "test",
+                r#"
+                <div class="entry">
+                    {{#if author}}
+                        <h1>{{first_name}} {{last_name}}</h1>
+                    {{/if}}
+                </div>
+            "#,
+                ("author", super::Author)
+            );
+        }
+        let author = Author {
+            first_name: "King".to_string(),
+            last_name: "Tubby".to_string(),
+        };
+        assert_eq!(
+            template::test(Some(author)).render().trim(),
+            r#"<div class="entry">
+                    
+                        <h1>King Tubby</h1>
+                    
+                </div>"#
+        );
+        assert_eq!(
+            template::test(None).render().trim(),
+            r#"<div class="entry">
+                    
+                </div>"#
+        );
+    }
 }

@@ -157,7 +157,9 @@ pub struct Rust{
     /// Set of used traits
     pub using: HashSet<String>,
     /// Generated code
-    pub code: String
+    pub code: String,
+    /// Top level variables
+    pub top_level_vars: HashSet<String>
 }
 
 /// Trait for HTML escaping
@@ -198,7 +200,8 @@ impl Rust{
     pub fn new() -> Self{
         Self{
             using: HashSet::new(),
-            code: String::new()
+            code: String::new(),
+            top_level_vars: HashSet::new()
         }
     }
 
@@ -250,7 +253,9 @@ pub struct Compile<'a>{
     /// Stack of open blocks
     pub open_stack: Vec<Scope>,
     /// Map of block helpers
-    pub block_map: &'a BlockMap
+    pub block_map: &'a BlockMap,
+    /// Types of variables
+    pub variable_types: &'a HashMap<String, String>
 }
 
 /// Appends a depth suffix to a variable name
@@ -273,13 +278,14 @@ impl<'a> Block for Root<'a>{
 
 impl<'a> Compile<'a>{
     /// Creates a new compiler
-    fn new(this: Option<&'static str>, block_map: &'a BlockMap) -> Self{
+    fn new(this: Option<&'static str>, block_map: &'a BlockMap, variable_types: &'a HashMap<String, String>) -> Self{
         Self{
             open_stack: vec![Scope{
                 depth: 0,
                 opened: Box::new(Root{this})
             }],
-            block_map
+            block_map,
+            variable_types
         }
     }
 
@@ -319,23 +325,24 @@ impl<'a> Compile<'a>{
     }
 
     /// Resolves a variable in a scope
-    fn resolve_var(&self, var: &'a str, scope: &Scope, buffer: &mut String) -> Result<()>{
+    fn resolve_var(&self, var: &'a str, scope: &Scope, rust: &mut Rust) -> Result<()>{
         if scope.depth == 0{
             if let Some(this) = scope.opened.this(){
-                buffer.push_str(this);
-                buffer.push('.');
+                rust.code.push_str(this);
+                rust.code.push('.');
             }
-            buffer.push_str(var);
+            rust.code.push_str(var);
+            rust.top_level_vars.insert(var.to_string());
             return Ok(());
         }
         if match scope.opened.local(){
-            Local::As(local) => self.resolve_local(scope.depth, var, local, buffer),
+            Local::As(local) => self.resolve_local(scope.depth, var, local, &mut rust.code),
             Local::This => {
-                buffer.push_str("this_");
-                buffer.push_str(scope.depth.to_string().as_str());
+                rust.code.push_str("this_");
+                rust.code.push_str(scope.depth.to_string().as_str());
                 if var != "this"{
-                    buffer.push('.');
-                    buffer.push_str(var);
+                    rust.code.push('.');
+                    rust.code.push_str(var);
                 }
                 true
             },
@@ -345,14 +352,14 @@ impl<'a> Compile<'a>{
         }
         let parent = &self.open_stack[scope.depth - 1];
         if let Some(this) = scope.opened.this(){
-            self.resolve_var(this, parent, buffer)?;
+            self.resolve_var(this, parent, rust)?;
             if var != this{
-                buffer.push('.');
-                buffer.push_str(var);
+                rust.code.push('.');
+                rust.code.push_str(var);
             }
         }
         else{
-            self.resolve_var(var, parent, buffer)?;
+            self.resolve_var(var, parent, rust)?;
         }
         Ok(())
     }
@@ -377,7 +384,7 @@ impl<'a> Compile<'a>{
             },
             TokenType::Variable => {
                 let (name, scope) = self.find_scope(var.value)?;
-                self.resolve_var(name, scope, &mut rust.code)?;
+                self.resolve_var(name, scope, rust)?;
             },
             TokenType::Literal => {
                 rust.code.push_str(var.value);
@@ -485,12 +492,14 @@ impl<'a> Compile<'a>{
 }
 
 /// Compiler options
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Options{
     /// Name of the root variable
     pub root_var_name: Option<&'static str>,
     /// Name of the write function
-    pub write_var_name: &'static str
+    pub write_var_name: &'static str,
+    /// Types of variables
+    pub variable_types: HashMap<String, String>
 }
 
 /// Main compiler implementation
@@ -595,7 +604,7 @@ impl Compiler {
 
     /// Compiles a template
     pub fn compile(&self, src: &str) -> Result<Rust>{
-        let mut compile = Compile::new(self.options.root_var_name, &self.block_map);
+        let mut compile = Compile::new(self.options.root_var_name, &self.block_map, &self.options.variable_types);
         let mut rust = Rust::new();
         let mut pending: Vec<PendingWrite> = Vec::new();
         let mut rest = src;

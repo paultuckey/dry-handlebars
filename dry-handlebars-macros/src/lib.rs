@@ -28,20 +28,54 @@ fn to_snake_case(s: &str) -> String {
     result
 }
 
-fn generate_code_for_content(name: &str, content: &str, path_for_include: Option<&str>) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+fn generate_code_for_content(name: &str, content: &str, path_for_include: Option<&str>, mut mappings: HashMap<String, syn::Type>) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     let struct_name_str = name.replace("-", "_");
     let struct_name = format_ident!("{}", struct_name_str);
 
     let mut content = content.to_string();
 
+    // Detect variables used in {{#if var}}
+    let re_if = Regex::new(r"\{\{#if\s+([a-zA-Z0-9_]+)\s*\}\}").unwrap();
+    let mut if_vars = HashSet::new();
+    for cap in re_if.captures_iter(&content) {
+        if_vars.insert(cap[1].to_string());
+    }
+
+    // Update mappings for if_vars to be Option<T>
+    for var in &if_vars {
+        if let Some(ty) = mappings.get(var) {
+            // Check if already Option
+            let ty_str = quote! { #ty }.to_string();
+            if !ty_str.contains("Option") {
+                let new_ty: syn::Type = syn::parse_quote! { Option<#ty> };
+                mappings.insert(var.clone(), new_ty);
+            }
+        }
+    }
+
     // Flatten nested variables: {{ obj.title }} -> {{ obj_title }}
     let re_flatten = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\s*\}\}").unwrap();
+    let mut mapping = HashMap::new();
     content = re_flatten.replace_all(&content, |caps: &regex::Captures| {
         let full_match = &caps[0];
         let var_name = &caps[1];
+
+        let parts: Vec<&str> = var_name.split('.').collect();
+        let root = parts[0];
+        if mappings.contains_key(root) {
+            return full_match.to_string();
+        }
+
         let new_var_name = var_name.replace(".", "_");
+        mapping.insert(new_var_name.clone(), var_name.to_string());
         full_match.replace(var_name, &new_var_name)
     }).to_string();
+
+    // Prepare variable types for Compiler
+    let mut variable_types = HashMap::new();
+    for (k, v) in &mappings {
+        variable_types.insert(k.clone(), quote! { #v }.to_string());
+    }
 
     // Compile template
     let mut block_map = HashMap::new();
@@ -49,52 +83,63 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
     let options = Options {
         root_var_name: Some("self"),
         write_var_name: "f",
+        variable_types,
     };
     let compiler = Compiler::new(options, block_map);
     let rust_code = compiler.compile(&content).expect("Failed to compile template");
     let render_body: proc_macro2::TokenStream = rust_code.code.parse().expect("Failed to parse generated code");
 
     // Extract variables
-    let re = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+)(?:[\.\[][a-zA-Z0-9_\.\[\]]*)?\s*\}\}").unwrap();
+    // Use top_level_vars from compiler
     let mut vars = HashSet::new();
-    for cap in re.captures_iter(&content) {
-        vars.insert(cap[1].to_string());
+    for var in rust_code.top_level_vars {
+        let root = var.split('.').next().unwrap();
+        vars.insert(root.to_string());
     }
+
+    // Also include variables found in {{#if}} that might not be in {{}}
+    for var in if_vars {
+        vars.insert(var);
+    }
+
     let mut sorted_vars: Vec<_> = vars.into_iter().collect();
     sorted_vars.sort();
 
-    let type_params: Vec<_> = (0..sorted_vars.len())
-        .map(|i| format_ident!("T{}", i))
-        .collect();
-    let field_defs = sorted_vars.iter().zip(&type_params).map(|(v, t)| {
-        let name = format_ident!("{}", v);
-        quote! { pub #name: #t }
-    });
+    let mut type_params = Vec::new();
+    let mut field_defs = Vec::new();
+    let mut new_args = Vec::new();
+    let mut field_inits = Vec::new();
+    let mut method_args = Vec::new();
+    let mut call_args = Vec::new();
 
-    let new_args = sorted_vars.iter().zip(&type_params).map(|(v, t)| {
-        let name = format_ident!("{}", v);
-        quote! { #name: #t }
-    });
+    let mut generic_param_index: usize = 0;
 
-    let field_inits = sorted_vars.iter().map(|v| {
+    for v in &sorted_vars {
         let name = format_ident!("{}", v);
-        quote! { #name }
-    });
 
+        if let Some(mapped_type) = mappings.get(v) {
+            field_defs.push(quote! { pub #name: #mapped_type });
+            new_args.push(quote! { #name: #mapped_type });
+            field_inits.push(quote! { #name });
+            method_args.push(quote! { #name: #mapped_type });
+            call_args.push(quote! { #name });
+        } else {
+            let t_param = format_ident!("T{}", generic_param_index);
+            generic_param_index += 1;
+
+            type_params.push(t_param.clone());
+
+            field_defs.push(quote! { pub #name: #t_param });
+            new_args.push(quote! { #name: #t_param });
+            field_inits.push(quote! { #name });
+            method_args.push(quote! { #name: #t_param });
+            call_args.push(quote! { #name });
+        }
+    }
 
     let method_name_str = to_snake_case(&struct_name_str);
     let method_name = format_ident!("{}", method_name_str);
 
-    // Clone args for method signature
-    let method_args = sorted_vars.iter().zip(&type_params).map(|(v, t)| {
-        let name = format_ident!("{}", v);
-        quote! { #name: #t }
-    });
-
-    let call_args = sorted_vars.iter().map(|v| {
-        let name = format_ident!("{}", v);
-        quote! { #name }
-    });
 
     let function_def = quote! {
         pub fn #method_name<#(#type_params: std::fmt::Display),*>(#(#method_args),*) -> #struct_name<#(#type_params),*> {
@@ -146,12 +191,13 @@ fn generate_code_for_file(path: &Path) -> (proc_macro2::TokenStream, proc_macro2
     let file_stem = path.file_stem().unwrap().to_string_lossy();
     let path_str = path.to_string_lossy();
     let content = fs::read_to_string(path).expect("Failed to read file");
-    generate_code_for_content(&file_stem, &content, Some(&path_str))
+    generate_code_for_content(&file_stem, &content, Some(&path_str), HashMap::new())
 }
 
 struct StrInput {
     name: LitStr,
     content: LitStr,
+    mappings: Vec<(String, syn::Type)>,
 }
 
 impl Parse for StrInput {
@@ -159,7 +205,24 @@ impl Parse for StrInput {
         let name: LitStr = input.parse()?;
         input.parse::<Token![,]>()?;
         let content: LitStr = input.parse()?;
-        Ok(StrInput { name, content })
+
+        let mut mappings = Vec::new();
+        if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            while !input.is_empty() {
+                let content;
+                syn::parenthesized!(content in input);
+                let key: LitStr = content.parse()?;
+                content.parse::<Token![,]>()?;
+                let ty: syn::Type = content.parse()?;
+                mappings.push((key.value(), ty));
+
+                if input.peek(Token![,]) {
+                    input.parse::<Token![,]>()?;
+                }
+            }
+        }
+        Ok(StrInput { name, content, mappings })
     }
 }
 
@@ -234,8 +297,9 @@ pub fn dry_handlebars_file(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn dry_handlebars_str(input: TokenStream) -> TokenStream {
-    let StrInput { name, content } = parse_macro_input!(input as StrInput);
-    let (struct_def, function_def) = generate_code_for_content(&name.value(), &content.value(), None);
+    let StrInput { name, content, mappings } = parse_macro_input!(input as StrInput);
+    let mappings_map: HashMap<String, syn::Type> = mappings.into_iter().collect();
+    let (struct_def, function_def) = generate_code_for_content(&name.value(), &content.value(), None, mappings_map);
 
     let expanded = quote! {
         #struct_def
