@@ -43,6 +43,7 @@ mod tests {
         mod template {
             dry_handlebars::str!(
                 "test",
+                //language=html
                 r#"
                 <div class="entry">
                     {{#if author}}
@@ -59,6 +60,7 @@ mod tests {
         };
         assert_eq!(
             template::test(Some(author)).render().trim(),
+            //language=html
             r#"<div class="entry">
                     
                         <h1>King Tubby</h1>
@@ -67,6 +69,7 @@ mod tests {
         );
         assert_eq!(
             template::test(None).render().trim(),
+            //language=html
             r#"<div class="entry">
                     
                 </div>"#
@@ -78,6 +81,7 @@ mod tests {
         mod template {
             dry_handlebars::str!(
                 "test",
+                //language=html
                 r#"
                 <div class="entry">
                     {{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}
@@ -92,12 +96,14 @@ mod tests {
         };
         assert_eq!(
             template::test(Some(author)).render().trim(),
+            //language=html
             r#"<div class="entry">
                     <h1>King</h1>
                 </div>"#
         );
         assert_eq!(
             template::test(None).render().trim(),
+            //language=html
             r#"<div class="entry">
                     <h1>Unknown</h1>
                 </div>"#

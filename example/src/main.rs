@@ -3,6 +3,7 @@ mod test;
 mod templates {
     dry_handlebars::directory!("templates/");
     dry_handlebars::file!("template/TodoEdit2.hbs");
+    //language=html
     dry_handlebars::str!("basic_usage", r#"
         <p>{{firstname}} {{lastname}}</p>
     "#);
