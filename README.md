@@ -30,13 +30,15 @@ And any errors in passing data to the template are found at compile time.
 
 ## Features
 
-Still in alpha stage, but features planned:
+Still in alpha stage, only a subset of handlebars functionality is supported.
 
 - [x] Uses `Display` trait for variables
 - [x] Get a struct and a template function for a `str`
 - [x] For a single file
 - [x] A directory of templates
-- [x] Support for simple top level keys (e.g. `{{ todo_id }}`)
-- [ ] Support for block helpers (e.g. `{{#if ...}} ... {{/if}}`)
-- [ ] Support for for loops (e.g. `{{#each items}} ... {{/each}}`)
-- [ ] Support for nested keys (e.g. `{{ user.name }}`)
+- [x] Simple top level keys (e.g. `{{ todo_id }}`) -> Fields must implement the `Display` trait
+- [x] Item properties (e.g. `{{ person.name }}`) -> Person type alias needed, fields must implement the `Display` trait
+- [x] if helpers (e.g. `{{#if ...}} ... {{/if}}`) -> Fields must be `Option<T>`
+- [x] if/else helpers (e.g. `{{#if ...}} xxx {{ else }} yyy {{/if}}`) -> Fields must be `Option<T>`
+- [ ] For loops (e.g. `{{#each items}} ... {{/each}}`) -> Fields must be iterable via the trait `IntoIterator`
+
