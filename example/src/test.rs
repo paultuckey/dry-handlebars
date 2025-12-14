@@ -72,4 +72,35 @@ mod tests {
                 </div>"#
         );
     }
+
+    #[test]
+    fn if_else_helper() {
+        mod template {
+            dry_handlebars::str!(
+                "test",
+                r#"
+                <div class="entry">
+                    {{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}
+                </div>
+            "#,
+                ("author", super::Author)
+            );
+        }
+        let author = Author {
+            first_name: "King".to_string(),
+            last_name: "Tubby".to_string(),
+        };
+        assert_eq!(
+            template::test(Some(author)).render().trim(),
+            r#"<div class="entry">
+                    <h1>King</h1>
+                </div>"#
+        );
+        assert_eq!(
+            template::test(None).render().trim(),
+            r#"<div class="entry">
+                    <h1>Unknown</h1>
+                </div>"#
+        );
+    }
 }
