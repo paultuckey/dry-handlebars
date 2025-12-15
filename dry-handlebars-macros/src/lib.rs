@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use syn::{LitStr, parse_macro_input, parse::Parse, parse::ParseStream, Token};
 use walkdir::WalkDir;
-use crate::parser::compiler::{Compiler, Options};
+use crate::parser::compiler::{Compiler, Options, Usage};
 use crate::parser::block::add_builtins;
 
 fn to_snake_case(s: &str) -> String {
@@ -34,6 +34,26 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
 
     let mut content = content.to_string();
 
+    let mut block_map = HashMap::new();
+    add_builtins(&mut block_map);
+
+    let temp_options = Options {
+        root_var_name: None,
+        write_var_name: "f",
+        variable_types: HashMap::new(),
+    };
+    let temp_compiler = Compiler::new(temp_options, block_map.clone());
+    let usages = temp_compiler.scan(&content).unwrap_or_default();
+
+    for (name, usage) in usages {
+        if !mappings.contains_key(&name) {
+            if let Usage::Boolean = usage {
+                let bool_ty: syn::Type = syn::parse_quote! { bool };
+                mappings.insert(name, bool_ty);
+            }
+        }
+    }
+
     // Detect variables used in {{#if var}}
     let re_if = Regex::new(r"\{\{#if\s+([a-zA-Z0-9_]+)\s*\}\}").unwrap();
     let mut if_vars = HashSet::new();
@@ -46,7 +66,7 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
         if let Some(ty) = mappings.get(var) {
             // Check if already Option
             let ty_str = quote! { #ty }.to_string();
-            if !ty_str.contains("Option") {
+            if !ty_str.contains("Option") && ty_str != "bool" {
                 let new_ty: syn::Type = syn::parse_quote! { Option<#ty> };
                 mappings.insert(var.clone(), new_ty);
             }
@@ -78,8 +98,6 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
     }
 
     // Compile template
-    let mut block_map = HashMap::new();
-    add_builtins(&mut block_map);
     let options = Options {
         root_var_name: Some("self"),
         write_var_name: "f",

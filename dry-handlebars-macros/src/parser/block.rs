@@ -134,6 +134,11 @@ impl BlockFactory for IfFty {
                     compile.write_var(expression, rust, &var)?;
                     rust.code.push_str("{");
                     return Ok(Box::new(IfSome{local: Local::This}));
+                 } else if type_str == "bool" {
+                    rust.code.push_str("if ");
+                    compile.write_var(expression, rust, &var)?;
+                    rust.code.push_str("{");
+                    return Ok(Box::new(IfOrUnless{}));
                  }
              }
         }

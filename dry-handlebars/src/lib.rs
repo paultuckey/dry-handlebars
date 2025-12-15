@@ -49,31 +49,19 @@ mod tests {
             crate::str!(
                 "test",
                 //language=handlebars
-                r#"
-                <div class="entry">
-                    {{#if has_author}}
-                        <h1>{{first_name}} {{last_name}}</h1>
-                    {{/if}}
-                </div>
-            "#
+                r#"<div>{{#if has_author}}<h1>{{first_name}} {{last_name}}</h1>{{/if}}</div>"#
             );
         }
 
         assert_eq!(
-            template::test(true, "King", "Tubby").render().trim(),
+            template::test("King", true, "Tubby").render().trim(),
             //language=html
-            r#"<div class="entry">
-
-                        <h1>King Tubby</h1>
-
-                </div>"#
+            "<div><h1>King Tubby</h1></div>"
         );
         assert_eq!(
-            template::test(false, "King", "Tubby").render().trim(),
+            template::test("King", false, "Tubby").render().trim(),
             //language=html
-            r#"<div class="entry">
-
-                </div>"#
+            "<div></div>"
         );
     }
 
@@ -83,13 +71,7 @@ mod tests {
             crate::str!(
                 "test",
                 //language=handlebars
-                r#"
-                <div class="entry">
-                    {{#if author}}
-                        <h1>{{first_name}} {{last_name}}</h1>
-                    {{/if}}
-                </div>
-            "#,
+                r#"<div>{{#if author}}<h1>{{first_name}} {{last_name}}</h1>{{/if}}</div>"#,
                 ("author", Option<super::Author>)
             );
         }
@@ -100,18 +82,12 @@ mod tests {
         assert_eq!(
             template::test(Some(author)).render().trim(),
             //language=html
-            r#"<div class="entry">
-
-                        <h1>King Tubby</h1>
-
-                </div>"#
+            "<div><h1>King Tubby</h1></div>"
         );
         assert_eq!(
             template::test(None).render().trim(),
             //language=html
-            r#"<div class="entry">
-
-                </div>"#
+            "<div></div>"
         );
     }
 
@@ -121,11 +97,7 @@ mod tests {
             crate::str!(
                 "test",
                 //language=handlebars
-                r#"
-                <div class="entry">
-                    {{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}
-                </div>
-            "#,
+                r#"<div>{{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}</div>"#,
                 ("author", Option<super::Author>)
             );
         }
@@ -136,16 +108,12 @@ mod tests {
         assert_eq!(
             template::test(Some(author)).render().trim(),
             //language=html
-            r#"<div class="entry">
-                    <h1>King</h1>
-                </div>"#
+            r#"<div><h1>King</h1></div>"#
         );
         assert_eq!(
             template::test(None).render().trim(),
             //language=html
-            r#"<div class="entry">
-                    <h1>Unknown</h1>
-                </div>"#
+            r#"<div><h1>Unknown</h1></div>"#
         );
     }
 

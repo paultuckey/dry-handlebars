@@ -125,6 +125,12 @@ use regex::{Captures, Regex};
 
 use crate::parser::{error::{ParseError, Result}, expression::{Expression, ExpressionType}, expression_tokenizer::{Token, TokenType}};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Usage {
+    Display,
+    Boolean,
+}
+
 /// Local variable declaration in a block
 pub enum Local{
     /// Named local variable: `as name`
@@ -532,6 +538,76 @@ impl Compiler {
         )
     }
 
+    fn scan_token<'a>(&self, token: &Token<'a>, usages: &mut HashMap<String, Usage>, usage: Usage) -> Result<()> {
+        match token.token_type {
+            TokenType::Variable => {
+                usages.entry(token.value.to_string())
+                    .and_modify(|e| {
+                        if *e == Usage::Display && usage == Usage::Boolean {
+                            *e = Usage::Boolean;
+                        }
+                    })
+                    .or_insert(usage);
+            },
+            TokenType::SubExpression(_) => {
+                if let Some(sub_token) = Token::first(token.value)? {
+                    if let Some(arg) = sub_token.next()? {
+                        self.scan_token(&arg, usages, Usage::Display)?;
+                        let mut current = arg;
+                        while let Some(next_arg) = current.next()? {
+                            self.scan_token(&next_arg, usages, Usage::Display)?;
+                            current = next_arg;
+                        }
+                    }
+                }
+            },
+            _ => {}
+        }
+        Ok(())
+    }
+
+    pub fn scan(&self, src: &str) -> Result<HashMap<String, Usage>> {
+        let mut usages = HashMap::new();
+        let mut expression = Expression::from(src)?;
+        while let Some(expr) = expression {
+            match expr.expression_type {
+                ExpressionType::Raw | ExpressionType::HtmlEscaped => {
+                    if expr.content != "else" {
+                        if let Some(token) = Token::first(&expr.content)? {
+                            self.scan_token(&token, &mut usages, Usage::Display)?;
+                            let mut current = token;
+                            while let Some(arg) = current.next()? {
+                                self.scan_token(&arg, &mut usages, Usage::Display)?;
+                                current = arg;
+                            }
+                        }
+                    }
+                },
+                ExpressionType::Open => {
+                    if let Some(token) = Token::first(&expr.content)? {
+                        let usage = if token.value == "if" || token.value == "unless" {
+                            Usage::Boolean
+                        } else {
+                            Usage::Display
+                        };
+
+                        if let Some(arg) = token.next()? {
+                             self.scan_token(&arg, &mut usages, usage)?;
+                             let mut current = arg;
+                             while let Some(next_arg) = current.next()? {
+                                 self.scan_token(&next_arg, &mut usages, Usage::Display)?;
+                                 current = next_arg;
+                             }
+                        }
+                    }
+                },
+                _ => {}
+            }
+            expression = expr.next()?;
+        }
+        Ok(usages)
+    }
+
     /// Commits pending writes
     fn commit_pending<'a>(&self, pending: &mut Vec<PendingWrite<'a>>, compile: &mut Compile<'a>, rust: &mut Rust) -> Result<()>{
         if pending.is_empty(){
@@ -604,7 +680,17 @@ impl Compiler {
 
     /// Compiles a template
     pub fn compile(&self, src: &str) -> Result<Rust>{
-        let mut compile = Compile::new(self.options.root_var_name, &self.block_map, &self.options.variable_types);
+        let usages = self.scan(src)?;
+        let mut variable_types = self.options.variable_types.clone();
+        for (name, usage) in usages {
+            if !variable_types.contains_key(&name) {
+                if let Usage::Boolean = usage {
+                    variable_types.insert(name, "bool".to_string());
+                }
+            }
+        }
+
+        let mut compile = Compile::new(self.options.root_var_name, &self.block_map, &variable_types);
         let mut rust = Rust::new();
         let mut pending: Vec<PendingWrite> = Vec::new();
         let mut rest = src;
