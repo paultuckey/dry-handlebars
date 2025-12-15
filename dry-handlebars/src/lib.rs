@@ -44,6 +44,40 @@ mod tests {
     }
 
     #[test]
+    fn if_bool_helper() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"
+                <div class="entry">
+                    {{#if has_author}}
+                        <h1>{{first_name}} {{last_name}}</h1>
+                    {{/if}}
+                </div>
+            "#
+            );
+        }
+
+        assert_eq!(
+            template::test(true, "King", "Tubby").render().trim(),
+            //language=html
+            r#"<div class="entry">
+
+                        <h1>King Tubby</h1>
+
+                </div>"#
+        );
+        assert_eq!(
+            template::test(false, "King", "Tubby").render().trim(),
+            //language=html
+            r#"<div class="entry">
+
+                </div>"#
+        );
+    }
+
+    #[test]
     fn if_option_helper() {
         mod template {
             crate::str!(
