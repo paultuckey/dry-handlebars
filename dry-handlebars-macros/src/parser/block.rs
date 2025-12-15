@@ -123,7 +123,7 @@ struct IfFty {}
 impl BlockFactory for IfFty {
     /// Opens an if block
     fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        let mut token_clone = token.clone();
+        let token_clone = token.clone();
         if let Some(var) = token_clone.next()? {
              let var_name = var.value;
              if let Some(type_str) = compile.variable_types.get(var_name) {

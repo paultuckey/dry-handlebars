@@ -45,11 +45,11 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
     let temp_compiler = Compiler::new(temp_options, block_map.clone());
     let usages = temp_compiler.scan(&content).unwrap_or_default();
 
-    for (name, usage) in usages {
-        if !mappings.contains_key(&name) {
+    for (name, usage) in &usages {
+        if !mappings.contains_key(name) {
             if let Usage::Boolean = usage {
                 let bool_ty: syn::Type = syn::parse_quote! { bool };
-                mappings.insert(name, bool_ty);
+                mappings.insert(name.clone(), bool_ty);
             }
         }
     }
@@ -109,19 +109,33 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
 
     // Extract variables
     // Use top_level_vars from compiler
-    let mut vars = HashSet::new();
+    let mut vars_set = HashSet::new();
     for var in rust_code.top_level_vars {
         let root = var.split('.').next().unwrap();
-        vars.insert(root.to_string());
+        vars_set.insert(root.to_string());
     }
 
     // Also include variables found in {{#if}} that might not be in {{}}
     for var in if_vars {
-        vars.insert(var);
+        vars_set.insert(var);
     }
 
-    let mut sorted_vars: Vec<_> = vars.into_iter().collect();
-    sorted_vars.sort();
+    let mut sorted_vars = Vec::new();
+    let mut seen_roots = HashSet::new();
+
+    // Use usages to determine order
+    for (name, _) in &usages {
+        let root = name.split('.').next().unwrap().to_string();
+        if vars_set.contains(&root) && !seen_roots.contains(&root) {
+            sorted_vars.push(root.clone());
+            seen_roots.insert(root);
+        }
+    }
+
+    // Add any remaining vars
+    let mut remaining_vars: Vec<_> = vars_set.into_iter().filter(|v| !seen_roots.contains(v)).collect();
+    remaining_vars.sort();
+    sorted_vars.extend(remaining_vars);
 
     let mut type_params = Vec::new();
     let mut field_defs = Vec::new();

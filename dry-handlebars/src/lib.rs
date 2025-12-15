@@ -11,8 +11,8 @@ mod tests {
             crate::str!("test", r#"<p>{{firstname}} {{lastname}}</p>"#);
         }
         assert_eq!(
-            template::test(" King", "Tubby ").render(),
-            "<p> King Tubby </p>"
+            template::test("King", "Tubby").render(),
+            "<p>King Tubby</p>"
         );
     }
 
@@ -54,12 +54,12 @@ mod tests {
         }
 
         assert_eq!(
-            template::test("King", true, "Tubby").render().trim(),
+            template::test(true, "King", "Tubby").render().trim(),
             //language=html
             "<div><h1>King Tubby</h1></div>"
         );
         assert_eq!(
-            template::test("King", false, "Tubby").render().trim(),
+            template::test(false, "King", "Tubby").render().trim(),
             //language=html
             "<div></div>"
         );

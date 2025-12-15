@@ -538,24 +538,28 @@ impl Compiler {
         )
     }
 
-    fn scan_token<'a>(&self, token: &Token<'a>, usages: &mut HashMap<String, Usage>, usage: Usage) -> Result<()> {
+    fn scan_token<'a>(&self, token: &Token<'a>, usages: &mut Vec<(String, Usage)>, seen: &mut HashSet<String>, usage: Usage) -> Result<()> {
         match token.token_type {
             TokenType::Variable => {
-                usages.entry(token.value.to_string())
-                    .and_modify(|e| {
-                        if *e == Usage::Display && usage == Usage::Boolean {
-                            *e = Usage::Boolean;
+                let name = token.value.to_string();
+                if seen.contains(&name) {
+                    if let Some((_, existing_usage)) = usages.iter_mut().find(|(n, _)| *n == name) {
+                        if *existing_usage == Usage::Display && usage == Usage::Boolean {
+                            *existing_usage = Usage::Boolean;
                         }
-                    })
-                    .or_insert(usage);
+                    }
+                } else {
+                    seen.insert(name.clone());
+                    usages.push((name, usage));
+                }
             },
             TokenType::SubExpression(_) => {
                 if let Some(sub_token) = Token::first(token.value)? {
                     if let Some(arg) = sub_token.next()? {
-                        self.scan_token(&arg, usages, Usage::Display)?;
+                        self.scan_token(&arg, usages, seen, Usage::Display)?;
                         let mut current = arg;
                         while let Some(next_arg) = current.next()? {
-                            self.scan_token(&next_arg, usages, Usage::Display)?;
+                            self.scan_token(&next_arg, usages, seen, Usage::Display)?;
                             current = next_arg;
                         }
                     }
@@ -566,18 +570,19 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn scan(&self, src: &str) -> Result<HashMap<String, Usage>> {
-        let mut usages = HashMap::new();
+    pub fn scan(&self, src: &str) -> Result<Vec<(String, Usage)>> {
+        let mut usages = Vec::new();
+        let mut seen = HashSet::new();
         let mut expression = Expression::from(src)?;
         while let Some(expr) = expression {
             match expr.expression_type {
                 ExpressionType::Raw | ExpressionType::HtmlEscaped => {
                     if expr.content != "else" {
                         if let Some(token) = Token::first(&expr.content)? {
-                            self.scan_token(&token, &mut usages, Usage::Display)?;
+                            self.scan_token(&token, &mut usages, &mut seen, Usage::Display)?;
                             let mut current = token;
                             while let Some(arg) = current.next()? {
-                                self.scan_token(&arg, &mut usages, Usage::Display)?;
+                                self.scan_token(&arg, &mut usages, &mut seen, Usage::Display)?;
                                 current = arg;
                             }
                         }
@@ -592,10 +597,10 @@ impl Compiler {
                         };
 
                         if let Some(arg) = token.next()? {
-                             self.scan_token(&arg, &mut usages, usage)?;
+                             self.scan_token(&arg, &mut usages, &mut seen, usage)?;
                              let mut current = arg;
                              while let Some(next_arg) = current.next()? {
-                                 self.scan_token(&next_arg, &mut usages, Usage::Display)?;
+                                 self.scan_token(&next_arg, &mut usages, &mut seen, Usage::Display)?;
                                  current = next_arg;
                              }
                         }
@@ -735,3 +740,4 @@ impl Compiler {
         Ok(rust)
     }
 }
+
