@@ -91,19 +91,12 @@ mod tests {
     }
 
     fn compile(src: &str) -> String {
-        Compiler::new(opts(), make_map())
-            .compile(src)
-            .unwrap()
-            .code
+        Compiler::new(opts(), make_map()).compile(src).unwrap().code
     }
 
-    #[test]
-    fn it_works() {
-        assert_eq!(
-            compile("Hello {{{name}}}!"),
-            "write!(f, \"Hello {}!\", self.name)?;"
-        );
-    }
+    // #[test]
+    // fn it_works()
+    // moved to dry_handlebars/lib.rs
 
     #[test]
     fn test_if() {
@@ -258,26 +251,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn if_some() {
-        let rust = compile(
-            "{{#if_some some}}Hello {{name}}{{else}}Oh dear{{/if_some}}{{#if some}}{{#if_some_ref ../some as |other|}}Hello {{other.name}}{{/if_some}}{{/if}}",
-        );
-        assert_eq!(
-            rust,
-            "if let Some(this_1) = self.some{write!(f, \"Hello {}\", this_1.name)?;}else{write!(f, \"Oh dear\")?;}if self.some.as_bool(){if let Some(other_2) = &self.some{write!(f, \"Hello {}\", other_2.name)?;}}"
-        );
-    }
+    // #[test]
+    // fn if_some()
+    // don't support if_some in dry_handlebars, achieve the same thing with type alias
 
-    #[test]
-    fn test_escaped() {
-        let rust = compile("{{{{skip}}}}wang doodle {{{{/dandy}}}}{{{{/skip}}}}");
-        assert_eq!(rust, "write!(f, \"wang doodle {{{{{{{{/dandy}}}}}}}}\")?;");
-    }
+    // #[test]
+    // fn test_escaped()
+    // moved to dry_handlebars/lib.rs
 
-    #[test]
-    fn test_format_number() {
-        let rust = compile("Price: ${{format \"{:.2}\" price}}");
-        assert_eq!(rust, "write!(f, \"Price: ${:.2}\", self.price)?;");
-    }
+    // #[test]
+    // fn test_format_number() {
+    // moved to dry_handlebars/lib.rs
 }

@@ -1,8 +1,6 @@
-
 pub use dry_handlebars_macros::dry_handlebars_directory as directory;
 pub use dry_handlebars_macros::dry_handlebars_file as file;
 pub use dry_handlebars_macros::dry_handlebars_str as str;
-
 
 #[cfg(test)]
 mod tests {
@@ -28,6 +26,7 @@ mod tests {
         mod template {
             crate::str!(
                 "test",
+                //language=handlebars
                 r#"{{person.firstname}} {{person.lastname}}"#,
                 ("person", super::Person)
             );
@@ -45,11 +44,11 @@ mod tests {
     }
 
     #[test]
-    fn if_helper() {
+    fn if_option_helper() {
         mod template {
             crate::str!(
                 "test",
-                //language=html
+                //language=handlebars
                 r#"
                 <div class="entry">
                     {{#if author}}
@@ -57,7 +56,7 @@ mod tests {
                     {{/if}}
                 </div>
             "#,
-                ("author", super::Author)
+                ("author", Option<super::Author>)
             );
         }
         let author = Author {
@@ -83,17 +82,17 @@ mod tests {
     }
 
     #[test]
-    fn if_else_helper() {
+    fn if_else_option_helper() {
         mod template {
             crate::str!(
                 "test",
-                //language=html
+                //language=handlebars
                 r#"
                 <div class="entry">
                     {{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}
                 </div>
             "#,
-                ("author", super::Author)
+                ("author", Option<super::Author>)
             );
         }
         let author = Author {
