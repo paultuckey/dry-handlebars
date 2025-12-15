@@ -148,4 +148,42 @@ mod tests {
                 </div>"#
         );
     }
+
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+    ///
+
+    #[test]
+    fn it_works() {
+        mod template {
+            crate::str!("test", "Hello {{{name}}}!");
+        }
+        assert_eq!(template::test("King").render(), "Hello King!");
+    }
+
+    #[test]
+    fn test_escaped() {
+        mod template {
+            crate::str!(
+                "test",
+                "{{{{skip}}}}wang doodle {{{{/dandy}}}}{{{{/skip}}}}"
+            );
+        }
+        assert_eq!(template::test().render(), "wang doodle {{{{/dandy}}}}");
+    }
+
+    #[test]
+    fn test_format_number() {
+        mod template {
+            crate::str!("test", "Price: ${{format \"{:.2}\" price}}");
+        }
+        assert_eq!(template::test(12.2345f64).render(), "Price: $12.23");
+    }
 }
