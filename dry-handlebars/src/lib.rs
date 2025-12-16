@@ -53,12 +53,33 @@ mod tests {
             );
         }
         assert_eq!(
-            template::test(true, "King", "Tubby").render().trim(),
+            template::test(true, "King", "Tubby").render(),
             //language=html
             "<div><h1>King Tubby</h1></div>"
         );
         assert_eq!(
-            template::test(false, "King", "Tubby").render().trim(),
+            template::test(false, "King", "Tubby").render(),
+            //language=html
+            "<div></div>"
+        );
+    }
+
+    #[test]
+    fn unless_helper() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"<div>{{#unless has_author}}<h1>Unknown</h1>{{/unless}}</div>"#
+            );
+        }
+        assert_eq!(
+            template::test(false).render(),
+            //language=html
+            "<div><h1>Unknown</h1></div>"
+        );
+        assert_eq!(
+            template::test(true).render(),
             //language=html
             "<div></div>"
         );
@@ -75,12 +96,12 @@ mod tests {
             );
         }
         assert_eq!(
-            template::test(true, "King").render().trim(),
+            template::test(true, "King").render(),
             //language=html
             r#"<div><h1>King</h1></div>"#
         );
         assert_eq!(
-            template::test(false, "King").render().trim(),
+            template::test(false, "King").render(),
             //language=html
             r#"<div><h1>Unknown</h1></div>"#
         );
@@ -101,12 +122,12 @@ mod tests {
             last_name: "Tubby".to_string(),
         };
         assert_eq!(
-            template::test(Some(author)).render().trim(),
+            template::test(Some(author)).render(),
             //language=html
             "<div><h1>King Tubby</h1></div>"
         );
         assert_eq!(
-            template::test(None).render().trim(),
+            template::test(None).render(),
             //language=html
             "<div></div>"
         );
@@ -127,10 +148,55 @@ mod tests {
             last_name: "Tubby".to_string(),
         };
         assert_eq!(
-            template::test(author).render().trim(),
+            template::test(author).render(),
             //language=html
             "<div><h1>King Tubby</h1></div>"
         );
+    }
+
+    #[test]
+    fn for_helper() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"<div>{{#each authors}}<p>Hello {{first_name}}</p>{{/each}}</div>"#,
+                ("authors", Vec<super::Author>)
+            );
+        }
+        let author = Author {
+            first_name: "King".to_string(),
+            last_name: "Tubby".to_string(),
+        };
+        assert_eq!(
+            template::test(vec![author]).render(),
+            //language=html
+            "<div><p>Hello King</p></div>"
+        );
+    }
+
+    #[test]
+    fn test_comment() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"Note: {{! This is a comment }} and {{!-- {{so is this}} --}}\\{{{{}}"#,
+            );
+        }
+        assert_eq!(template::test().render(), "Note:  and \\{{");
+    }
+
+    #[test]
+    fn test_trimming() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"  {{~#if some ~}}   Hello{{~/if~}}"#,
+            );
+        }
+        assert_eq!(template::test(true).render(), "Hello");
     }
 
     ///

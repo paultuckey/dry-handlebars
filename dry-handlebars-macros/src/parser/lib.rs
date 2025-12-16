@@ -94,49 +94,6 @@ mod tests {
         Compiler::new(opts(), make_map()).compile(src).unwrap().code
     }
 
-    // #[test]
-    // fn it_works()
-    // moved to dry_handlebars/lib.rs
-
-    #[test]
-    fn test_if() {
-        let rust = compile("{{#if some}}Hello{{/if}}");
-        assert_eq!(rust, "if self.some.as_bool(){write!(f, \"Hello\")?;}");
-    }
-
-    #[test]
-    fn test_else() {
-        let rust = compile("{{#if some}}Hello{{else}}World{{/if}}");
-        assert_eq!(
-            rust,
-            "if self.some.as_bool(){write!(f, \"Hello\")?;}else{write!(f, \"World\")?;}"
-        );
-    }
-
-    #[test]
-    fn test_unless() {
-        let rust = compile("{{#unless some}}Hello{{/unless}}");
-        assert_eq!(rust, "if !self.some.as_bool(){write!(f, \"Hello\")?;}");
-    }
-
-    #[test]
-    fn test_each() {
-        let rust = compile("{{#each some}}Hello {{this}}{{/each}}");
-        assert_eq!(
-            rust,
-            "for this_1 in self.some{write!(f, \"Hello {}\", this_1)?;}"
-        );
-    }
-
-    #[test]
-    fn test_with() {
-        let rust = compile("{{#with some}}Hello {{name}}{{/with}}");
-        assert_eq!(
-            rust,
-            "{let this_1 = self.some;write!(f, \"Hello {}\", this_1.name)?;}"
-        );
-    }
-
     #[test]
     fn test_nesting() {
         let rust = compile("{{#if some}}{{#each some}}Hello {{this}}{{/each}}{{/if}}");
@@ -158,12 +115,6 @@ mod tests {
     }
 
     #[test]
-    fn test_comment() {
-        let rust = compile("Note: {{! This is a comment }} and {{!-- {{so is this}} --}}\\{{{{}}");
-        assert_eq!(rust, "write!(f, \"Note:  and {{{{\")?;");
-    }
-
-    #[test]
     fn test_scoping() {
         let rust = compile(
             "{{#with some}}{{#with other}}Hello {{name}} {{../company}} {{/with}}{{/with}}",
@@ -172,12 +123,6 @@ mod tests {
             rust,
             "{let this_1 = self.some;{let this_2 = this_1.other;write!(f, \"Hello {} {} \", this_2.name.as_display_html(), this_1.company.as_display_html())?;}}"
         );
-    }
-
-    #[test]
-    fn test_trimming() {
-        let rust = compile("  {{~#if some ~}}   Hello{{~/if~}}");
-        assert_eq!(rust, "if self.some.as_bool(){write!(f, \"Hello\")?;}");
     }
 
     #[test]
@@ -202,16 +147,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_literals() {
-        let rust = compile(
-            "{{#if_some (try_lookup thing \"test\")}}{{this}}{{/if_some}} {{#if_some (try_lookup other_thing 123)}}{{this}}{{/if_some}}",
-        );
-        assert_eq!(
-            rust,
-            "if let Some(this_1) = self.thing.get(\"test\"){write!(f, \"{}\", this_1.as_display_html())?;}write!(f, \" \")?;if let Some(this_1) = self.other_thing.get(123){write!(f, \"{}\", this_1.as_display_html())?;}"
-        );
-    }
 
     #[test]
     fn test_subexpression() {
@@ -250,10 +185,6 @@ mod tests {
             "write!(f, \"<script>if (location.href.contains(\\\"localhost\\\")){{ console.log(\\\"{{{{}}}}\\\") }}</script>\")?;"
         );
     }
-
-    // #[test]
-    // fn if_some()
-    // don't support if_some in dry_handlebars, achieve the same thing with type alias
 
     // #[test]
     // fn test_escaped()

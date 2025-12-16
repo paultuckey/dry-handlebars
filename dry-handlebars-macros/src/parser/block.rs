@@ -25,9 +25,8 @@
 //! This module provides functionality for parsing and compiling Handlebars block helpers.
 //! It supports various block types including:
 //! - `if`/`unless` for conditional rendering
-//! - `if_some`/`if_some_ref` for handling Option types
-//! - `with`/`with_ref` for changing context
-//! - `each`/`each_ref` for iterating over collections
+//! - `with` for changing context
+//! - `each` for iterating over collections
 //!
 //! # Block Types
 //!
@@ -35,17 +34,11 @@
 //! - `{{#if value}}...{{/if}}` - Renders content if value is truthy
 //! - `{{#unless value}}...{{/unless}}` - Renders content if value is falsy
 //!
-//! ## Option Handling
-//! - `{{#if_some value as item}}...{{/if_some}}` - Handles Option types
-//! - `{{#if_some_ref value as item}}...{{/if_some_ref}}` - Handles Option references
-//!
 //! ## Context Blocks
 //! - `{{#with value as item}}...{{/with}}` - Changes context to value
-//! - `{{#with_ref value as item}}...{{/with_ref}}` - Changes context to value reference
 //!
 //! ## Iteration Blocks
 //! - `{{#each items as item}}...{{/each}}` - Iterates over collection
-//! - `{{#each_ref items as item}}...{{/each_ref}}` - Iterates over collection references
 //! - Supports `@index` for accessing current index
 //! - Supports `else` block for empty collections
 //!
@@ -98,10 +91,9 @@ impl IfOrUnless {
     pub fn new<'a>(label: &str, prefix: &str, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<IfOrUnless> {
         match token.next()? {
             Some(var) => {
-                rust.using.insert("AsBool".to_string());
                 rust.code.push_str(prefix);
                 compile.write_var(expression, rust, &var)?;
-                rust.code.push_str(".as_bool(){");
+                rust.code.push_str("{");
                 Ok(Self{})
             },
             None => Err(ParseError::new(&format!("expected variable after {}", label), expression))
@@ -123,18 +115,6 @@ struct IfFty {}
 impl BlockFactory for IfFty {
     /// Opens an if block
     fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        let token_clone = token.clone();
-        if let Some(var) = token_clone.next()? {
-             let var_name = var.value;
-             if let Some(type_str) = compile.variable_types.get(var_name) {
-                 if type_str == "bool" {
-                    rust.code.push_str("if ");
-                    compile.write_var(expression, rust, &var)?;
-                    rust.code.push_str("{");
-                    return Ok(Box::new(IfOrUnless{}));
-                 }
-             }
-        }
         Ok(Box::new(IfOrUnless::new("if", "if ", compile, token, expression, rust)?))
     }
 }
@@ -186,26 +166,6 @@ impl Block for IfSome {
     }
 }
 
-/// Factory for if_some blocks
-struct IfSomeFty {}
-
-impl BlockFactory for IfSomeFty {
-    /// Opens an if_some block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(IfSome::new(false, compile, token, expression, rust)?))
-    }
-}
-
-/// Factory for if_some_ref blocks
-struct IfSomeRefFty {}
-
-impl BlockFactory for IfSomeRefFty {
-    /// Opens an if_some_ref block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(IfSome::new(true, compile, token, expression, rust)?))
-    }
-}
-
 /// Handles with block compilation
 struct With {
     local: Local
@@ -252,16 +212,6 @@ impl BlockFactory for WithFty {
                  }
              }
         }
-        Ok(Box::new(With::new(true, compile, token, expression, rust)?))
-    }
-}
-
-/// Factory for with_ref blocks
-struct WithRefFty {}
-
-impl BlockFactory for WithRefFty {
-    /// Opens a with_ref block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
         Ok(Box::new(With::new(true, compile, token, expression, rust)?))
     }
 }
@@ -438,37 +388,19 @@ struct EachFty {}
 impl BlockFactory for EachFty {
     /// Opens an each block
     fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(Each::new(false, compile, token, expression, rust)?))
-    }
-}
-
-/// Factory for each_ref blocks
-struct EachRefFty {}
-
-impl BlockFactory for EachRefFty {
-    /// Opens an each_ref block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
         Ok(Box::new(Each::new(true, compile, token, expression, rust)?))
     }
 }
 
 const IF: IfFty = IfFty{};
 const UNLESS: UnlessFty = UnlessFty{};
-const IF_SOME: IfSomeFty = IfSomeFty{};
-const IF_SOME_REF: IfSomeRefFty = IfSomeRefFty{};
 const WITH: WithFty = WithFty{};
-const WITH_REF: WithRefFty = WithRefFty{};
 const EACH: EachFty = EachFty{};
-const EACH_REF: EachRefFty = EachRefFty{};
 
 /// Adds built-in block helpers to the block map
 pub fn add_builtins(map: &mut BlockMap) {
     map.insert("if", &IF);
     map.insert("unless", &UNLESS);
-    map.insert("if_some", &IF_SOME);
-    map.insert("if_some_ref", &IF_SOME_REF);
     map.insert("with", &WITH);
-    map.insert("with_ref", &WITH_REF);
     map.insert("each", &EACH);
-    map.insert("each_ref", &EACH_REF);
 }
