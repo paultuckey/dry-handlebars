@@ -1,20 +1,20 @@
 
 mod templates {
     dry_handlebars::directory!("templates/");
-    dry_handlebars::file!("template/TodoEdit2.hbs");
+    dry_handlebars::file!("template/button2.hbs");
     //language=html
-    dry_handlebars::str!("basic_usage", r#"
-        <p>{{firstname}} {{lastname}}</p>
+    dry_handlebars::str!("hello_first_last", r#"
+        <p>Hello {{firstname}} {{lastname}}</p>
     "#);
 }
 
 fn main() {
-    let html = templates::todo_edit(42, "My Todo").render();
+    let html = templates::button(42, "My Todo").render();
     println!("{}", html);
 
-    let html2 = templates::todo_edit2(43, "Single File Todo").render();
+    let html2 = templates::button2(43, "Single File Todo").render();
     println!("{}", html2);
 
-    let html3 = templates::basic_usage("King", "Tubby").render();
+    let html3 = templates::hello_first_last("King", "Tubby").render();
     println!("{}", html3);
 }
