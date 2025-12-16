@@ -18,7 +18,7 @@ describe('Handlebars Reference Tests', () => {
         expect(result).toBe('King Tubby');
     });
 
-    it('if_bool_helper', () => {
+    it('if_helper', () => {
         const template = Handlebars.compile('<div>{{#if has_author}}<h1>{{first_name}} {{last_name}}</h1>{{/if}}</div>');
 
         const resultTrue = template({ has_author: true, first_name: "King", last_name: "Tubby" });
@@ -28,17 +28,12 @@ describe('Handlebars Reference Tests', () => {
         expect(resultFalse).toBe('<div></div>');
     });
 
-    it('if_option_helper', () => {
-        // dry-handlebars treats {{#if option}} like {{#with option}} (context switching).
-        // Standard Handlebars {{#if}} does not switch context.
-        // We use {{#with}} here to match the behavior.
+    it('with_helper', () => {
         const template = Handlebars.compile('<div>{{#with author}}<h1>{{first_name}} {{last_name}}</h1>{{/with}}</div>');
-
         const author = {
             first_name: "King",
             last_name: "Tubby",
         };
-
         const resultTrue = template({ author });
         expect(resultTrue).toBe('<div><h1>King Tubby</h1></div>');
 
@@ -46,8 +41,7 @@ describe('Handlebars Reference Tests', () => {
         expect(resultFalse).toBe('<div></div>');
     });
 
-    it('if_else_option_helper', () => {
-        // Using {{#with}} to match dry-handlebars context switching behavior
+    it('with_else_helper', () => {
         const template = Handlebars.compile('<div>{{#with author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/with}}</div>');
 
         const author = {

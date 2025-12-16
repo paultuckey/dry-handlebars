@@ -127,14 +127,7 @@ impl BlockFactory for IfFty {
         if let Some(var) = token_clone.next()? {
              let var_name = var.value;
              if let Some(type_str) = compile.variable_types.get(var_name) {
-                 if type_str.contains("Option") {
-                    rust.code.push_str("if let Some(ref ");
-                    compile.write_local(&mut rust.code, &Local::This);
-                    rust.code.push_str(") = ");
-                    compile.write_var(expression, rust, &var)?;
-                    rust.code.push_str("{");
-                    return Ok(Box::new(IfSome{local: Local::This}));
-                 } else if type_str == "bool" {
+                 if type_str == "bool" {
                     rust.code.push_str("if ");
                     compile.write_var(expression, rust, &var)?;
                     rust.code.push_str("{");
@@ -250,7 +243,16 @@ struct WithFty {}
 impl BlockFactory for WithFty {
     /// Opens a with block
     fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(With::new(false, compile, token, expression, rust)?))
+        let token_clone = token.clone();
+        if let Some(var) = token_clone.next()? {
+             let var_name = var.value;
+             if let Some(type_str) = compile.variable_types.get(var_name) {
+                 if type_str.contains("Option") {
+                    return Ok(Box::new(IfSome::new(true, compile, token, expression, rust)?));
+                 }
+             }
+        }
+        Ok(Box::new(With::new(true, compile, token, expression, rust)?))
     }
 }
 

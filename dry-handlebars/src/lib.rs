@@ -44,7 +44,7 @@ mod tests {
     }
 
     #[test]
-    fn if_bool_helper() {
+    fn if_helper() {
         mod template {
             crate::str!(
                 "test",
@@ -52,7 +52,6 @@ mod tests {
                 r#"<div>{{#if has_author}}<h1>{{first_name}} {{last_name}}</h1>{{/if}}</div>"#
             );
         }
-
         assert_eq!(
             template::test(true, "King", "Tubby").render().trim(),
             //language=html
@@ -66,12 +65,34 @@ mod tests {
     }
 
     #[test]
-    fn if_option_helper() {
+    fn if_else_helper() {
         mod template {
             crate::str!(
                 "test",
                 //language=handlebars
-                r#"<div>{{#if author}}<h1>{{first_name}} {{last_name}}</h1>{{/if}}</div>"#,
+                r#"<div>{{#if has_author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}</div>"#,
+                ("author", Option<super::Author>)
+            );
+        }
+        assert_eq!(
+            template::test(true, "King").render().trim(),
+            //language=html
+            r#"<div><h1>King</h1></div>"#
+        );
+        assert_eq!(
+            template::test(false, "King").render().trim(),
+            //language=html
+            r#"<div><h1>Unknown</h1></div>"#
+        );
+    }
+
+    #[test]
+    fn with_helper_option() {
+        mod template {
+            crate::str!(
+                "test",
+                //language=handlebars
+                r#"<div>{{#with author}}<h1>{{first_name}} {{last_name}}</h1>{{/with}}</div>"#,
                 ("author", Option<super::Author>)
             );
         }
@@ -92,13 +113,13 @@ mod tests {
     }
 
     #[test]
-    fn if_else_option_helper() {
+    fn with_helper() {
         mod template {
             crate::str!(
                 "test",
                 //language=handlebars
-                r#"<div>{{#if author}}<h1>{{first_name}}</h1>{{else}}<h1>Unknown</h1>{{/if}}</div>"#,
-                ("author", Option<super::Author>)
+                r#"<div>{{#with author}}<h1>{{first_name}} {{last_name}}</h1>{{/with}}</div>"#,
+                ("author", super::Author)
             );
         }
         let author = Author {
@@ -106,14 +127,9 @@ mod tests {
             last_name: "Tubby".to_string(),
         };
         assert_eq!(
-            template::test(Some(author)).render().trim(),
+            template::test(author).render().trim(),
             //language=html
-            r#"<div><h1>King</h1></div>"#
-        );
-        assert_eq!(
-            template::test(None).render().trim(),
-            //language=html
-            r#"<div><h1>Unknown</h1></div>"#
+            "<div><h1>King Tubby</h1></div>"
         );
     }
 
