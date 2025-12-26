@@ -1,15 +1,15 @@
 mod parser;
 
+use crate::parser::block::add_builtins;
+use crate::parser::compiler::{Compiler, Options, Usage};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use regex::Regex;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
-use syn::{LitStr, parse_macro_input, parse::Parse, parse::ParseStream, Token};
+use syn::{LitStr, Token, parse::Parse, parse::ParseStream, parse_macro_input};
 use walkdir::WalkDir;
-use crate::parser::compiler::{Compiler, Options, Usage};
-use crate::parser::block::add_builtins;
 
 fn to_snake_case(s: &str) -> String {
     let mut result = String::new();
@@ -28,7 +28,12 @@ fn to_snake_case(s: &str) -> String {
     result
 }
 
-fn generate_code_for_content(name: &str, content: &str, path_for_include: Option<&str>, mut mappings: HashMap<String, syn::Type>) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+fn generate_code_for_content(
+    name: &str,
+    content: &str,
+    path_for_include: Option<&str>,
+    mut mappings: HashMap<String, syn::Type>,
+) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     let struct_name_str = name.replace("-", "_");
     let struct_name = format_ident!("{}", struct_name_str);
 
@@ -76,20 +81,22 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
     // Flatten nested variables: {{ obj.title }} -> {{ obj_title }}
     let re_flatten = Regex::new(r"\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\s*\}\}").unwrap();
     let mut mapping = HashMap::new();
-    content = re_flatten.replace_all(&content, |caps: &regex::Captures| {
-        let full_match = &caps[0];
-        let var_name = &caps[1];
+    content = re_flatten
+        .replace_all(&content, |caps: &regex::Captures| {
+            let full_match = &caps[0];
+            let var_name = &caps[1];
 
-        let parts: Vec<&str> = var_name.split('.').collect();
-        let root = parts[0];
-        if mappings.contains_key(root) {
-            return full_match.to_string();
-        }
+            let parts: Vec<&str> = var_name.split('.').collect();
+            let root = parts[0];
+            if mappings.contains_key(root) {
+                return full_match.to_string();
+            }
 
-        let new_var_name = var_name.replace(".", "_");
-        mapping.insert(new_var_name.clone(), var_name.to_string());
-        full_match.replace(var_name, &new_var_name)
-    }).to_string();
+            let new_var_name = var_name.replace(".", "_");
+            mapping.insert(new_var_name.clone(), var_name.to_string());
+            full_match.replace(var_name, &new_var_name)
+        })
+        .to_string();
 
     // Prepare variable types for Compiler
     let mut variable_types = HashMap::new();
@@ -104,8 +111,13 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
         variable_types,
     };
     let compiler = Compiler::new(options, block_map);
-    let rust_code = compiler.compile(&content).expect("Failed to compile template");
-    let render_body: proc_macro2::TokenStream = rust_code.code.parse().expect("Failed to parse generated code");
+    let rust_code = compiler
+        .compile(&content)
+        .expect("Failed to compile template");
+    let render_body: proc_macro2::TokenStream = rust_code
+        .code
+        .parse()
+        .expect("Failed to parse generated code");
 
     // Extract variables
     // Use top_level_vars from compiler
@@ -133,7 +145,10 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
     }
 
     // Add any remaining vars
-    let mut remaining_vars: Vec<_> = vars_set.into_iter().filter(|v| !seen_roots.contains(v)).collect();
+    let mut remaining_vars: Vec<_> = vars_set
+        .into_iter()
+        .filter(|v| !seen_roots.contains(v))
+        .collect();
     remaining_vars.sort();
     sorted_vars.extend(remaining_vars);
 
@@ -171,7 +186,6 @@ fn generate_code_for_content(name: &str, content: &str, path_for_include: Option
 
     let method_name_str = to_snake_case(&struct_name_str);
     let method_name = format_ident!("{}", method_name_str);
-
 
     let function_def = quote! {
         pub fn #method_name<#(#type_params: std::fmt::Display),*>(#(#method_args),*) -> #struct_name<#(#type_params),*> {
@@ -254,7 +268,11 @@ impl Parse for StrInput {
                 }
             }
         }
-        Ok(StrInput { name, content, mappings })
+        Ok(StrInput {
+            name,
+            content,
+            mappings,
+        })
     }
 }
 
@@ -309,12 +327,9 @@ pub fn dry_handlebars_file(input: TokenStream) -> TokenStream {
     let path = Path::new(&manifest_dir).join(&file_str);
 
     if !path.exists() {
-        return syn::Error::new(
-            file_lit.span(),
-            format!("File not found: {:?}", path),
-        )
-        .to_compile_error()
-        .into();
+        return syn::Error::new(file_lit.span(), format!("File not found: {:?}", path))
+            .to_compile_error()
+            .into();
     }
 
     let (struct_def, function_def) = generate_code_for_file(&path);
@@ -329,9 +344,14 @@ pub fn dry_handlebars_file(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn dry_handlebars_str(input: TokenStream) -> TokenStream {
-    let StrInput { name, content, mappings } = parse_macro_input!(input as StrInput);
+    let StrInput {
+        name,
+        content,
+        mappings,
+    } = parse_macro_input!(input as StrInput);
     let mappings_map: HashMap<String, syn::Type> = mappings.into_iter().collect();
-    let (struct_def, function_def) = generate_code_for_content(&name.value(), &content.value(), None, mappings_map);
+    let (struct_def, function_def) =
+        generate_code_for_content(&name.value(), &content.value(), None, mappings_map);
 
     let expanded = quote! {
         #struct_def

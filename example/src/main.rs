@@ -1,11 +1,13 @@
-
 mod templates {
     dry_handlebars::directory!("templates/");
     dry_handlebars::file!("template/button2.hbs");
     //language=html
-    dry_handlebars::str!("hello_first_last", r#"
+    dry_handlebars::str!(
+        "hello_first_last",
+        r#"
         <p>Hello {{firstname}} {{lastname}}</p>
-    "#);
+    "#
+    );
 }
 
 fn main() {
