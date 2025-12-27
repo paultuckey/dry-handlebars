@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "dry-handlebars",
+    "dry-handlebars-macros",
+    "example",
+]
+resolver = "2"
+
