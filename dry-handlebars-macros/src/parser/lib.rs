@@ -43,8 +43,8 @@
 //! # Example
 //!
 //! ```rust
-//! use rusty_handlebars_parser::{Compiler, Options, BlockMap};
-//! use rusty_handlebars_parser::block::add_builtins;
+//! use compiler::{Compiler, Options, BlockMap};
+//! use block::add_builtins;
 //!
 //! let mut factories = BlockMap::new();
 //! add_builtins(&mut factories);
