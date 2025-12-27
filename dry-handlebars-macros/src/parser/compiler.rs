@@ -40,9 +40,9 @@
 //! # Examples
 //!
 //! Basic usage:
-//! ```rust
-//! use rusty_handlebars_parser::compiler::{Compiler, Options};
-//! use rusty_handlebars_parser::block::add_builtins;
+//! ```ignore
+//! use compiler::{Compiler, Options};
+//! use block::add_builtins;
 //!
 //! let mut block_map = HashMap::new();
 //! add_builtins(&mut block_map);
@@ -57,9 +57,9 @@
 //! ```
 //!
 //! Complex template example:
-//! ```rust
-//! use rusty_handlebars_parser::compiler::{Compiler, Options};
-//! use rusty_handlebars_parser::block::add_builtins;
+//! ```ignore
+//! use compiler::{Compiler, Options};
+//! use block::add_builtins;
 //!
 //! let mut block_map = HashMap::new();
 //! add_builtins(&mut block_map);
@@ -119,11 +119,19 @@
 //! - Block scope management
 //! - Template structure and formatting
 
-use std::{borrow::Cow, collections::{HashMap, HashSet}, fmt::{Display, Write}};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    fmt::{Display, Write},
+};
 
 use regex::{Captures, Regex};
 
-use crate::parser::{error::{ParseError, Result}, expression::{Expression, ExpressionType}, expression_tokenizer::{Token, TokenType}};
+use crate::parser::{
+    error::{ParseError, Result},
+    expression::{Expression, ExpressionType},
+    expression_tokenizer::{Token, TokenType},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Usage {
@@ -132,40 +140,40 @@ pub enum Usage {
 }
 
 /// Local variable declaration in a block
-pub enum Local{
+pub enum Local {
     /// Named local variable: `as name`
     As(String),
     /// This context: `this`
     This,
     /// No local variable
-    None
+    None,
 }
 
 /// A scope in the template
-pub struct Scope{
+pub struct Scope {
     /// The block that opened this scope
     pub opened: Box<dyn Block>,
     /// The depth of this scope
-    pub depth: usize
+    pub depth: usize,
 }
 
 /// A pending write operation
-enum PendingWrite<'a>{
+enum PendingWrite<'a> {
     /// Raw text to write
     Raw(&'a str),
     /// Expression to evaluate and write
     Expression((Expression<'a>, &'static str, &'static str)),
-    Format((&'a str, &'a str, &'a str))
+    Format((&'a str, &'a str, &'a str)),
 }
 
 /// Rust code generation state
-pub struct Rust{
+pub struct Rust {
     /// Set of used traits
     pub using: HashSet<String>,
     /// Generated code
     pub code: String,
     /// Top level variables
-    pub top_level_vars: HashSet<String>
+    pub top_level_vars: HashSet<String>,
 }
 
 /// Trait for HTML escaping
@@ -174,22 +182,27 @@ pub static USE_AS_DISPLAY: &str = "Display";
 pub static USE_AS_DISPLAY_HTML: &str = "Display";
 
 /// Helper for formatting use statements
-pub struct Uses<'a>{
+pub struct Uses<'a> {
     uses: &'a HashSet<String>,
-    crate_name: &'a str
+    crate_name: &'a str,
 }
 
-impl<'a> Display for Uses<'a>{
+impl<'a> Display for Uses<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.uses.len(){
+        match self.uses.len() {
             0 => (),
-            1 => write!(f, "use {}::{}", self.crate_name, self.uses.iter().next().unwrap())?,
+            1 => write!(
+                f,
+                "use {}::{}",
+                self.crate_name,
+                self.uses.iter().next().unwrap()
+            )?,
             _ => {
                 f.write_str("use ")?;
-                f.write_str(&self.crate_name)?;
+                f.write_str(self.crate_name)?;
                 f.write_str("::")?;
                 let mut glue = '{';
-                for use_ in self.uses{
+                for use_ in self.uses {
                     f.write_char(glue)?;
                     f.write_str(use_)?;
                     glue = ',';
@@ -201,139 +214,170 @@ impl<'a> Display for Uses<'a>{
     }
 }
 
-impl Rust{
+impl Rust {
     /// Creates a new Rust code generator
-    pub fn new() -> Self{
-        Self{
+    pub fn new() -> Self {
+        Self {
             using: HashSet::new(),
             code: String::new(),
-            top_level_vars: HashSet::new()
+            top_level_vars: HashSet::new(),
         }
     }
 
     /// Returns a formatter for use statements
-    pub fn uses<'a>(&'a self, crate_name: &'a str) -> Uses<'a>{
-        Uses{ uses: &self.using, crate_name}
+    pub fn uses<'a>(&'a self, crate_name: &'a str) -> Uses<'a> {
+        Uses {
+            uses: &self.using,
+            crate_name,
+        }
     }
 }
 
 /// Trait for block helpers
-pub trait Block{
+pub trait Block {
     /// Handles block closing
-    fn handle_close<'a>(&self, rust: &mut Rust) {
-        rust.code.push_str("}");
+    fn handle_close(&self, rust: &mut Rust) {
+        rust.code.push('}');
     }
 
     /// Resolves a private variable
-    fn resolve_private<'a>(&self, _depth: usize, expression: &'a Expression<'a>, _name: &str, _rust: &mut Rust) -> Result<()>{
-        Err(ParseError::new(&format!("{} not expected ", expression.content), expression))
+    fn resolve_private<'a>(
+        &self,
+        _depth: usize,
+        expression: &'a Expression<'a>,
+        _name: &str,
+        _rust: &mut Rust,
+    ) -> Result<()> {
+        Err(ParseError::new(
+            &format!("{} not expected ", expression.content),
+            expression,
+        ))
     }
 
     /// Handles else block
-    fn handle_else<'a>(&self, expression: &'a Expression<'a>, _rust: &mut Rust) -> Result<()>{
+    fn handle_else<'a>(&self, expression: &'a Expression<'a>, _rust: &mut Rust) -> Result<()> {
         Err(ParseError::new("else not expected here", expression))
     }
 
     /// Returns the this context
-    fn this<'a>(&self) -> Option<&str>{
+    fn this(&self) -> Option<&str> {
         None
     }
 
     /// Returns the local variable
-    fn local<'a>(&self) -> &Local{
+    fn local(&self) -> &Local {
         &Local::None
     }
 }
 
 /// Trait for block helper factories
-pub trait BlockFactory{
+pub trait BlockFactory {
     /// Opens a new block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>>;
+    fn open<'a>(
+        &self,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Box<dyn Block>>;
 }
 
 /// Map of block helper names to factories
 pub type BlockMap = HashMap<&'static str, &'static dyn BlockFactory>;
 
 /// Compiler state
-pub struct Compile<'a>{
+pub struct Compile<'a> {
     /// Stack of open blocks
     pub open_stack: Vec<Scope>,
     /// Map of block helpers
     pub block_map: &'a BlockMap,
     /// Types of variables
-    pub variable_types: &'a HashMap<String, String>
+    pub variable_types: &'a HashMap<String, String>,
 }
 
 /// Appends a depth suffix to a variable name
-pub fn append_with_depth(depth: usize, var: &str, buffer: &mut String){
+pub fn append_with_depth(depth: usize, var: &str, buffer: &mut String) {
     buffer.push_str(var);
     buffer.push('_');
     buffer.push_str(depth.to_string().as_str());
 }
 
 /// Root block implementation
-struct Root<'a>{
-    this: Option<&'a str>
+struct Root<'a> {
+    this: Option<&'a str>,
 }
 
-impl<'a> Block for Root<'a>{
-    fn this<'b>(&self) -> Option<&str>{
+impl<'a> Block for Root<'a> {
+    fn this<'b>(&self) -> Option<&str> {
         self.this
     }
 }
 
-impl<'a> Compile<'a>{
+impl<'a> Compile<'a> {
     /// Creates a new compiler
-    fn new(this: Option<&'static str>, block_map: &'a BlockMap, variable_types: &'a HashMap<String, String>) -> Self{
-        Self{
-            open_stack: vec![Scope{
+    fn new(
+        this: Option<&'static str>,
+        block_map: &'a BlockMap,
+        variable_types: &'a HashMap<String, String>,
+    ) -> Self {
+        Self {
+            open_stack: vec![Scope {
                 depth: 0,
-                opened: Box::new(Root{this})
+                opened: Box::new(Root { this }),
             }],
             block_map,
-            variable_types
+            variable_types,
         }
     }
 
     /// Finds the scope for a variable
-    fn find_scope(&self, var: &'a str) -> Result<(&'a str, &Scope)>{
+    fn find_scope(&self, var: &'a str) -> Result<(&'a str, &Scope)> {
         let mut scope = self.open_stack.last().unwrap();
         let mut local = var;
-        while local.starts_with("../"){
-            match scope.depth{
-                0 => return Err(ParseError{ message: format!("unable to resolve scope for {}", var)}),
+        while local.starts_with("../") {
+            match scope.depth {
+                0 => {
+                    return Err(ParseError {
+                        message: format!("unable to resolve scope for {}", var),
+                    });
+                }
                 _ => {
-                    local = &local[3 ..];
+                    local = &local[3..];
                     scope = self.open_stack.get(scope.depth - 1).unwrap();
                 }
             }
         }
-        return Ok((local, scope));
+        Ok((local, scope))
     }
 
     /// Resolves a local variable
-    fn resolve_local(&self, depth: usize, var: &'a str, local: &'a str, buffer: &mut String) -> bool{
-        if var.starts_with(local){
+    fn resolve_local(
+        &self,
+        depth: usize,
+        var: &'a str,
+        local: &'a str,
+        buffer: &mut String,
+    ) -> bool {
+        if var.starts_with(local) {
             let len = local.len();
-            if var.len() > len{
-                if &var[len .. len + 1] != "."{
+            if var.len() > len {
+                if &var[len..len + 1] != "." {
                     return false;
                 }
                 append_with_depth(depth, local, buffer);
-                buffer.push_str(&var[len ..]);
-            }
-            else{
+                buffer.push_str(&var[len..]);
+            } else {
                 append_with_depth(depth, local, buffer);
             }
             return true;
         }
-        return false;
+        false
     }
 
     /// Resolves a variable in a scope
-    fn resolve_var(&self, var: &'a str, scope: &Scope, rust: &mut Rust) -> Result<()>{
-        if scope.depth == 0{
-            if let Some(this) = scope.opened.this(){
+    fn resolve_var(&self, var: &'a str, scope: &Scope, rust: &mut Rust) -> Result<()> {
+        if scope.depth == 0 {
+            if let Some(this) = scope.opened.this() {
                 rust.code.push_str(this);
                 rust.code.push('.');
             }
@@ -341,60 +385,69 @@ impl<'a> Compile<'a>{
             rust.top_level_vars.insert(var.to_string());
             return Ok(());
         }
-        if match scope.opened.local(){
+        if match scope.opened.local() {
             Local::As(local) => self.resolve_local(scope.depth, var, local, &mut rust.code),
             Local::This => {
                 rust.code.push_str("this_");
                 rust.code.push_str(scope.depth.to_string().as_str());
-                if var != "this"{
+                if var != "this" {
                     rust.code.push('.');
                     rust.code.push_str(var);
                 }
                 true
-            },
-            Local::None => false
-        }{
+            }
+            Local::None => false,
+        } {
             return Ok(());
         }
         let parent = &self.open_stack[scope.depth - 1];
-        if let Some(this) = scope.opened.this(){
+        if let Some(this) = scope.opened.this() {
             self.resolve_var(this, parent, rust)?;
-            if var != this{
+            if var != this {
                 rust.code.push('.');
                 rust.code.push_str(var);
             }
-        }
-        else{
+        } else {
             self.resolve_var(var, parent, rust)?;
         }
         Ok(())
     }
 
     /// Resolves a sub-expression
-    fn resolve_sub_expression(&self, raw: &str, value: &str, rust: &mut Rust) -> Result<()>{
-        self.resolve(&Expression { 
-            expression_type: ExpressionType::Raw,
-            prefix: "",
-            content: value,
-            postfix: "", 
-            raw
-        }, rust)
+    fn resolve_sub_expression(&self, raw: &str, value: &str, rust: &mut Rust) -> Result<()> {
+        self.resolve(
+            &Expression {
+                expression_type: ExpressionType::Raw,
+                prefix: "",
+                content: value,
+                postfix: "",
+                raw,
+            },
+            rust,
+        )
     }
 
     /// Writes a variable expression
-    pub fn write_var(&self, expression: &Expression<'a>, rust: &mut Rust, var: &Token<'a>) -> Result<()>{
-        match var.token_type{
+    pub fn write_var(
+        &self,
+        expression: &Expression<'a>,
+        rust: &mut Rust,
+        var: &Token<'a>,
+    ) -> Result<()> {
+        match var.token_type {
             TokenType::PrivateVariable => {
                 let (name, scope) = self.find_scope(var.value)?;
-                scope.opened.resolve_private(scope.depth, expression, name, rust)?;
-            },
+                scope
+                    .opened
+                    .resolve_private(scope.depth, expression, name, rust)?;
+            }
             TokenType::Variable => {
                 let (name, scope) = self.find_scope(var.value)?;
                 self.resolve_var(name, scope, rust)?;
-            },
+            }
             TokenType::Literal => {
                 rust.code.push_str(var.value);
-            },
+            }
             TokenType::SubExpression(raw) => {
                 self.resolve_sub_expression(raw, var.value, rust)?;
             }
@@ -403,27 +456,44 @@ impl<'a> Compile<'a>{
     }
 
     /// Handles an else block
-    fn handle_else(&self, expression: &Expression<'a>, rust: &mut Rust) -> Result<()>{
+    fn handle_else(&self, expression: &Expression<'a>, rust: &mut Rust) -> Result<()> {
         match self.open_stack.last() {
             Some(scope) => scope.opened.handle_else(expression, rust),
-            None => Err(ParseError::new("else not expected here", expression))
+            None => Err(ParseError::new("else not expected here", expression)),
         }
     }
 
     /// Resolves a lookup expression
-    fn resolve_lookup(&self, expression: &Expression<'a>, prefix: &str, postfix: char, args: Token<'a>, rust: &mut Rust) -> Result<()>{
+    fn resolve_lookup(
+        &self,
+        expression: &Expression<'a>,
+        prefix: &str,
+        postfix: char,
+        args: Token<'a>,
+        rust: &mut Rust,
+    ) -> Result<()> {
         self.write_var(expression, rust, &args)?;
         rust.code.push_str(prefix);
-        self.write_var(expression, rust, &args.next()?.ok_or(
-            ParseError::new("lookup expects 2 arguments", &expression))?
+        self.write_var(
+            expression,
+            rust,
+            &args
+                .next()?
+                .ok_or(ParseError::new("lookup expects 2 arguments", expression))?,
         )?;
         rust.code.push(postfix);
         Ok(())
     }
 
     /// Resolves a helper expression
-    fn resolve_helper(&self, expression: &Expression<'a>, name: Token<'a>, mut args: Token<'a>, rust: &mut Rust) -> Result<()>{
-        match name.value{
+    fn resolve_helper(
+        &self,
+        expression: &Expression<'a>,
+        name: Token<'a>,
+        mut args: Token<'a>,
+        rust: &mut Rust,
+    ) -> Result<()> {
+        match name.value {
             "lookup" => self.resolve_lookup(expression, "[", ']', args, rust),
             "try_lookup" => self.resolve_lookup(expression, ".get(", ')', args, rust),
             name => {
@@ -431,12 +501,12 @@ impl<'a> Compile<'a>{
                 rust.code.push('(');
                 self.write_var(expression, rust, &args)?;
                 loop {
-                    args = match args.next()?{
+                    args = match args.next()? {
                         Some(token) => {
                             rust.code.push_str(", ");
                             self.write_var(expression, rust, &token)?;
                             token
-                        },
+                        }
                         None => {
                             rust.code.push(')');
                             return Ok(());
@@ -448,19 +518,17 @@ impl<'a> Compile<'a>{
     }
 
     /// Resolves an expression
-    fn resolve(&self, expression: &Expression<'a>, rust: &mut Rust) -> Result<()>{
-        let token = match Token::first(&expression.content)?{
+    fn resolve(&self, expression: &Expression<'a>, rust: &mut Rust) -> Result<()> {
+        let token = match Token::first(expression.content)? {
             Some(token) => token,
-            None => return Err(ParseError::new("expected token", &expression))
+            None => return Err(ParseError::new("expected token", expression)),
         };
         rust.code.push_str(expression.prefix);
-        if let TokenType::SubExpression(raw) = token.token_type{
+        if let TokenType::SubExpression(raw) = token.token_type {
             self.resolve_sub_expression(raw, token.value, rust)?;
-        }
-        else if let Some(args) = token.next()?{
+        } else if let Some(args) = token.next()? {
             self.resolve_helper(expression, token, args, rust)?;
-        }
-        else{
+        } else {
             self.write_var(expression, rust, &token)?;
         }
         rust.code.push_str(expression.postfix);
@@ -468,77 +536,93 @@ impl<'a> Compile<'a>{
     }
 
     /// Writes a local variable declaration
-    pub fn write_local(&self, rust: &mut String, local: &Local){
-        append_with_depth(self.open_stack.len(), match local{
-            Local::As(local) => local,
-            _ => "this"
-        }, rust);
+    pub fn write_local(&self, rust: &mut String, local: &Local) {
+        append_with_depth(
+            self.open_stack.len(),
+            match local {
+                Local::As(local) => local,
+                _ => "this",
+            },
+            rust,
+        );
     }
 
     /// Closes a block
-    fn close(&mut self, expression: Expression<'a>, rust: &mut Rust) -> Result<()>{
-        let scope = self.open_stack.pop().ok_or_else(|| ParseError::new("Mismatched block helper", &expression))?;
+    fn close(&mut self, expression: Expression<'a>, rust: &mut Rust) -> Result<()> {
+        let scope = self
+            .open_stack
+            .pop()
+            .ok_or_else(|| ParseError::new("Mismatched block helper", &expression))?;
         Ok(scope.opened.handle_close(rust))
     }
 
     /// Opens a block
-    fn open(&mut self, expression: Expression<'a>, rust: &mut Rust) -> Result<()>{
-        let token = Token::first(&expression.content)?.ok_or_else(|| ParseError::new("expected token", &expression))?;
-        match self.block_map.get(token.value){
+    fn open(&mut self, expression: Expression<'a>, rust: &mut Rust) -> Result<()> {
+        let token = Token::first(expression.content)?
+            .ok_or_else(|| ParseError::new("expected token", &expression))?;
+        match self.block_map.get(token.value) {
             Some(block) => {
-                self.open_stack.push(Scope{
+                self.open_stack.push(Scope {
                     opened: block.open(self, token, &expression, rust)?,
-                    depth: self.open_stack.len()
+                    depth: self.open_stack.len(),
                 });
                 Ok(())
-            },
-            None => Err(ParseError::new(&format!("unsupported block helper {}", token.value), &expression))
+            }
+            None => Err(ParseError::new(
+                &format!("unsupported block helper {}", token.value),
+                &expression,
+            )),
         }
     }
 }
 
 /// Compiler options
 #[derive(Debug, Clone)]
-pub struct Options{
+pub struct Options {
     /// Name of the root variable
     pub root_var_name: Option<&'static str>,
     /// Name of the write function
     pub write_var_name: &'static str,
     /// Types of variables
-    pub variable_types: HashMap<String, String>
+    pub variable_types: HashMap<String, String>,
 }
 
 /// Main compiler implementation
-pub struct Compiler{
+pub struct Compiler {
     /// Regex for cleaning whitespace
     clean: Regex,
     /// Compiler options
     options: Options,
     /// Map of block helpers
-    block_map: BlockMap
+    block_map: BlockMap,
 }
 
 impl Compiler {
     /// Creates a new compiler
-    pub fn new(options: Options, block_map: BlockMap) -> Self{
-        Self{
+    pub fn new(options: Options, block_map: BlockMap) -> Self {
+        Self {
             clean: Regex::new("[\\\\\"\\{\\}]").unwrap(),
             options,
-            block_map
+            block_map,
         }
     }
 
     /// Escapes HTML content
     fn escape<'a>(&self, content: &'a str) -> Cow<'a, str> {
-        self.clean.replace_all(
-            &content, |captures: &Captures| match &captures[0]{
+        self.clean
+            .replace_all(content, |captures: &Captures| match &captures[0] {
                 "{" | "}" => format!("{}{}", &captures[0], &captures[0]),
-                _ => format!("\\{}", &captures[0])
-            }
-        )
+                _ => format!("\\{}", &captures[0]),
+            })
     }
 
-    fn scan_token<'a>(&self, token: &Token<'a>, usages: &mut Vec<(String, Usage)>, seen: &mut HashSet<String>, usage: Usage) -> Result<()> {
+    fn scan_token<'a>(
+        &self,
+        token: &Token<'a>,
+        usages: &mut Vec<(String, Usage)>,
+        seen: &mut HashSet<String>,
+        usage: Usage,
+    ) -> Result<()> {
         match token.token_type {
             TokenType::Variable => {
                 let name = token.value.to_string();
@@ -552,7 +636,7 @@ impl Compiler {
                     seen.insert(name.clone());
                     usages.push((name, usage));
                 }
-            },
+            }
             TokenType::SubExpression(_) => {
                 if let Some(sub_token) = Token::first(token.value)? {
                     if let Some(arg) = sub_token.next()? {
@@ -564,7 +648,7 @@ impl Compiler {
                         }
                     }
                 }
-            },
+            }
             _ => {}
         }
         Ok(())
@@ -578,7 +662,7 @@ impl Compiler {
             match expr.expression_type {
                 ExpressionType::Raw | ExpressionType::HtmlEscaped => {
                     if expr.content != "else" {
-                        if let Some(token) = Token::first(&expr.content)? {
+                        if let Some(token) = Token::first(expr.content)? {
                             self.scan_token(&token, &mut usages, &mut seen, Usage::Display)?;
                             let mut current = token;
                             while let Some(arg) = current.next()? {
@@ -587,9 +671,9 @@ impl Compiler {
                             }
                         }
                     }
-                },
+                }
                 ExpressionType::Open => {
-                    if let Some(token) = Token::first(&expr.content)? {
+                    if let Some(token) = Token::first(expr.content)? {
                         let usage = if token.value == "if" || token.value == "unless" {
                             Usage::Boolean
                         } else {
@@ -597,15 +681,15 @@ impl Compiler {
                         };
 
                         if let Some(arg) = token.next()? {
-                             self.scan_token(&arg, &mut usages, &mut seen, usage)?;
-                             let mut current = arg;
-                             while let Some(next_arg) = current.next()? {
-                                 self.scan_token(&next_arg, &mut usages, &mut seen, Usage::Display)?;
-                                 current = next_arg;
-                             }
+                            self.scan_token(&arg, &mut usages, &mut seen, usage)?;
+                            let mut current = arg;
+                            while let Some(next_arg) = current.next()? {
+                                self.scan_token(&next_arg, &mut usages, &mut seen, Usage::Display)?;
+                                current = next_arg;
+                            }
                         }
                     }
-                },
+                }
                 _ => {}
             }
             expression = expr.next()?;
@@ -614,43 +698,54 @@ impl Compiler {
     }
 
     /// Commits pending writes
-    fn commit_pending<'a>(&self, pending: &mut Vec<PendingWrite<'a>>, compile: &mut Compile<'a>, rust: &mut Rust) -> Result<()>{
-        if pending.is_empty(){
+    fn commit_pending<'a>(
+        &self,
+        pending: &mut Vec<PendingWrite<'a>>,
+        compile: &mut Compile<'a>,
+        rust: &mut Rust,
+    ) -> Result<()> {
+        if pending.is_empty() {
             return Ok(());
         }
         rust.code.push_str("write!(");
         rust.code.push_str(self.options.write_var_name);
         rust.code.push_str(", \"");
-        for pending in pending.iter(){
-            match pending{
+        for pending in pending.iter() {
+            match pending {
                 PendingWrite::Raw(raw) => rust.code.push_str(self.escape(raw).as_ref()),
                 PendingWrite::Expression(_) => rust.code.push_str("{}"),
-                PendingWrite::Format((_, format, _)) => rust.code.push_str(format)
+                PendingWrite::Format((_, format, _)) => rust.code.push_str(format),
             }
         }
         rust.code.push('"');
-        for pending in pending.iter(){
-            match pending{
+        for pending in pending.iter() {
+            match pending {
                 PendingWrite::Expression((expression, uses, display)) => {
-                    compile.resolve(&Expression{
-                        expression_type: ExpressionType::Raw,
-                        prefix: ", ",
-                        content: expression.content,
-                        postfix: display,
-                        raw: expression.raw
-                    }, rust)?;
+                    compile.resolve(
+                        &Expression {
+                            expression_type: ExpressionType::Raw,
+                            prefix: ", ",
+                            content: expression.content,
+                            postfix: display,
+                            raw: expression.raw,
+                        },
+                        rust,
+                    )?;
                     rust.using.insert(uses.to_string());
-                },
+                }
                 PendingWrite::Format((raw, _, content)) => {
-                    compile.resolve(&Expression{
-                        expression_type: ExpressionType::Raw,
-                        prefix: ", ",
-                        content,
-                        postfix: "",
-                        raw
-                    }, rust)?;
-                },
-                _ => ()
+                    compile.resolve(
+                        &Expression {
+                            expression_type: ExpressionType::Raw,
+                            prefix: ", ",
+                            content,
+                            postfix: "",
+                            raw,
+                        },
+                        rust,
+                    )?;
+                }
+                _ => (),
             }
         }
         rust.code.push_str(")?;");
@@ -658,86 +753,101 @@ impl Compiler {
         Ok(())
     }
 
-    fn select_write<'a>(expression: &Expression<'a>, uses: &'static str, postfix: &'static str) -> Result<PendingWrite<'a>>{
-        if let Some(token) = Token::first(&expression.content)?{
-            if let TokenType::Variable = token.token_type{
-                if token.value != "format"{
-                    return Ok(PendingWrite::Expression((expression.clone(), uses, postfix)));
+    fn select_write<'a>(
+        expression: &Expression<'a>,
+        uses: &'static str,
+        postfix: &'static str,
+    ) -> Result<PendingWrite<'a>> {
+        if let Some(token) = Token::first(expression.content)? {
+            if let TokenType::Variable = token.token_type {
+                if token.value != "format" {
+                    return Ok(PendingWrite::Expression((*expression, uses, postfix)));
                 }
-                let pattern = match token.next()?{
+                let pattern = match token.next()? {
                     Some(token) => token,
-                    _ => return Ok(PendingWrite::Expression((expression.clone(), uses, postfix)))
+                    _ => {
+                        return Ok(PendingWrite::Expression((*expression, uses, postfix)));
+                    }
                 };
-                let value = match pattern.next(){
+                let value = match pattern.next() {
                     Ok(Some(token)) => token,
-                    _ => return Err(ParseError::new("format requires 2 arguments", expression))
+                    _ => return Err(ParseError::new("format requires 2 arguments", expression)),
                 };
-                if let TokenType::Literal = pattern.token_type{
-                    if pattern.value.starts_with('"') && pattern.value.ends_with('"'){
-                        return Ok(PendingWrite::Format((expression.raw, &pattern.value[1..pattern.value.len() - 1], value.value)));
+                if let TokenType::Literal = pattern.token_type {
+                    if pattern.value.starts_with('"') && pattern.value.ends_with('"') {
+                        return Ok(PendingWrite::Format((
+                            expression.raw,
+                            &pattern.value[1..pattern.value.len() - 1],
+                            value.value,
+                        )));
                     }
                 }
-                return Err(ParseError::new("first argument of format must be a string literal", expression));
+                return Err(ParseError::new(
+                    "first argument of format must be a string literal",
+                    expression,
+                ));
             }
         }
-        Ok(PendingWrite::Expression((expression.clone(), uses, postfix)))
+        Ok(PendingWrite::Expression((*expression, uses, postfix)))
     }
 
     /// Compiles a template
-    pub fn compile(&self, src: &str) -> Result<Rust>{
+    pub fn compile(&self, src: &str) -> Result<Rust> {
         let usages = self.scan(src)?;
         let mut variable_types = self.options.variable_types.clone();
         for (name, usage) in usages {
-            if !variable_types.contains_key(&name) {
-                if let Usage::Boolean = usage {
-                    variable_types.insert(name, "bool".to_string());
-                }
+            if !variable_types.contains_key(&name)
+                && let Usage::Boolean = usage
+            {
+                variable_types.insert(name, "bool".to_string());
             }
         }
 
-        let mut compile = Compile::new(self.options.root_var_name, &self.block_map, &variable_types);
+        let mut compile =
+            Compile::new(self.options.root_var_name, &self.block_map, &variable_types);
         let mut rust = Rust::new();
         let mut pending: Vec<PendingWrite> = Vec::new();
         let mut rest = src;
         let mut expression = Expression::from(src)?;
-        while let Some(expr) = expression{
-            let Expression{
+        while let Some(expr) = expression {
+            let Expression {
                 expression_type,
                 prefix,
                 content,
                 postfix,
-                raw: _
+                raw: _,
             } = &expr;
-            rest = postfix; 
-            if !prefix.is_empty(){
+            rest = postfix;
+            if !prefix.is_empty() {
                 pending.push(PendingWrite::Raw(prefix));
             }
-            match expression_type{
+            match expression_type {
                 ExpressionType::Raw => pending.push(Self::select_write(&expr, USE_AS_DISPLAY, "")?),
-                ExpressionType::HtmlEscaped => if *content == "else" {
-                    self.commit_pending(&mut pending, &mut compile, &mut rust)?;
-                    compile.handle_else(&expr, &mut rust)?
-                } else {
-                    pending.push(Self::select_write(&expr, USE_AS_DISPLAY_HTML, "")?)
-                },
+                ExpressionType::HtmlEscaped => {
+                    if *content == "else" {
+                        self.commit_pending(&mut pending, &mut compile, &mut rust)?;
+                        compile.handle_else(&expr, &mut rust)?
+                    } else {
+                        pending.push(Self::select_write(&expr, USE_AS_DISPLAY_HTML, "")?)
+                    }
+                }
                 ExpressionType::Open => {
                     self.commit_pending(&mut pending, &mut compile, &mut rust)?;
                     compile.open(expr, &mut rust)?
-                },
+                }
                 ExpressionType::Close => {
                     self.commit_pending(&mut pending, &mut compile, &mut rust)?;
                     compile.close(expr, &mut rust)?
-                },
+                }
                 ExpressionType::Escaped => pending.push(PendingWrite::Raw(content)),
-                _ => ()
+                _ => (),
             };
             expression = expr.next()?;
         }
-        if !rest.is_empty(){
+        if !rest.is_empty() {
             pending.push(PendingWrite::Raw(rest));
         }
         self.commit_pending(&mut pending, &mut compile, &mut rust)?;
         Ok(rust)
     }
 }
-

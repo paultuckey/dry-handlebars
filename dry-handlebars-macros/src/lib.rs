@@ -51,11 +51,11 @@ fn generate_code_for_content(
     let usages = temp_compiler.scan(&content).unwrap_or_default();
 
     for (name, usage) in &usages {
-        if !mappings.contains_key(name) {
-            if let Usage::Boolean = usage {
-                let bool_ty: syn::Type = syn::parse_quote! { bool };
-                mappings.insert(name.clone(), bool_ty);
-            }
+        if !mappings.contains_key(name)
+            && let Usage::Boolean = usage
+        {
+            let bool_ty: syn::Type = syn::parse_quote! { bool };
+            mappings.insert(name.clone(), bool_ty);
         }
     }
 
@@ -303,7 +303,7 @@ pub fn dry_handlebars_directory(input: TokenStream) -> TokenStream {
         };
 
         let path = entry.path();
-        if path.is_file() && path.extension().map_or(false, |ext| ext == "hbs") {
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "hbs") {
             let (struct_def, function_def) = generate_code_for_file(path);
             structs.push(struct_def);
             functions.push(function_def);

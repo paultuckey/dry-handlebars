@@ -44,16 +44,21 @@
 //!
 //! # Examples
 //!
-//! ```rust
-//! use rusty_handlebars_parser::block::{Block, BlockFactory};
-//! use rusty_handlebars_parser::expression::{Expression, ExpressionType};
+//! ```ignore
+//! use block::{Block, BlockFactory};
+//! use expression::{Expression, ExpressionType};
 //!
 //! let template = "{{#if user}}Hello {{user.name}}!{{/if}}";
 //! let expr = Expression::from(template).unwrap().unwrap();
 //! assert_eq!(expr.expression_type, ExpressionType::Open);
 //! ```
 
-use crate::parser::{compiler::{append_with_depth, Block, BlockFactory, BlockMap, Compile, Local, Rust}, error::{ParseError, Result}, expression::{Expression, ExpressionType}, expression_tokenizer::Token};
+use crate::parser::{
+    compiler::{Block, BlockFactory, BlockMap, Compile, Local, Rust, append_with_depth},
+    error::{ParseError, Result},
+    expression::{Expression, ExpressionType},
+    expression_tokenizer::Token,
+};
 
 /// Strips pipe characters from a token value
 fn strip_pipes<'a>(token: Token<'a>, expression: &Expression<'a>) -> Result<&'a str> {
@@ -64,22 +69,23 @@ fn strip_pipes<'a>(token: Token<'a>, expression: &Expression<'a>) -> Result<&'a 
                     continue;
                 }
                 Ok(token.value.trim_matches('|'))
-            },
-            None => Err(ParseError::new("expected variable after as", expression))
-        }
+            }
+            None => Err(ParseError::new("expected variable after as", expression)),
+        };
     }
 }
 
 /// Reads a local variable declaration from a token
 fn read_local<'a>(token: &Token<'a>, expression: &Expression<'a>) -> Result<Local> {
     match token.next()? {
-        Some(token) => {
-            match token.value {
-                "as" => Ok(Local::As(strip_pipes(token, expression)?.to_string())),
-                token => Err(ParseError::new(&format!("unexpected token {}", token), expression))
-            }
+        Some(token) => match token.value {
+            "as" => Ok(Local::As(strip_pipes(token, expression)?.to_string())),
+            token => Err(ParseError::new(
+                &format!("unexpected token {}", token),
+                expression,
+            )),
         },
-        None => Ok(Local::This)
+        None => Ok(Local::This),
     }
 }
 
@@ -88,15 +94,25 @@ struct IfOrUnless {}
 
 impl IfOrUnless {
     /// Creates a new if/unless block
-    pub fn new<'a>(label: &str, prefix: &str, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<IfOrUnless> {
+    pub fn new<'a>(
+        label: &str,
+        prefix: &str,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<IfOrUnless> {
         match token.next()? {
             Some(var) => {
                 rust.code.push_str(prefix);
                 compile.write_var(expression, rust, &var)?;
-                rust.code.push_str("{");
-                Ok(Self{})
-            },
-            None => Err(ParseError::new(&format!("expected variable after {}", label), expression))
+                rust.code.push('{');
+                Ok(Self {})
+            }
+            None => Err(ParseError::new(
+                &format!("expected variable after {}", label),
+                expression,
+            )),
         }
     }
 }
@@ -114,8 +130,16 @@ struct IfFty {}
 
 impl BlockFactory for IfFty {
     /// Opens an if block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(IfOrUnless::new("if", "if ", compile, token, expression, rust)?))
+    fn open<'a>(
+        &self,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Box<dyn Block>> {
+        Ok(Box::new(IfOrUnless::new(
+            "if", "if ", compile, token, expression, rust,
+        )?))
     }
 }
 
@@ -124,22 +148,42 @@ struct UnlessFty {}
 
 impl BlockFactory for UnlessFty {
     /// Opens an unless block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
-        Ok(Box::new(IfOrUnless::new("unless", "if !", compile, token, expression, rust)?))
+    fn open<'a>(
+        &self,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Box<dyn Block>> {
+        Ok(Box::new(IfOrUnless::new(
+            "unless", "if !", compile, token, expression, rust,
+        )?))
     }
 }
 
 /// Handles if_some block compilation
 struct IfSome {
-    local: Local
+    local: Local,
 }
 
 impl IfSome {
     /// Creates a new if_some block
-    fn new<'a>(by_ref: bool, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Self> {
-        let next = token.next()?.ok_or_else(|| ParseError::new(
-            &format!("expected variable after if_some{}", if by_ref {"_ref"} else {""}), expression
-        ))?;
+    fn new<'a>(
+        by_ref: bool,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Self> {
+        let next = token.next()?.ok_or_else(|| {
+            ParseError::new(
+                &format!(
+                    "expected variable after if_some{}",
+                    if by_ref { "_ref" } else { "" }
+                ),
+                expression,
+            )
+        })?;
         let local = read_local(&next, expression)?;
         rust.code.push_str("if let Some(");
         compile.write_local(&mut rust.code, &local);
@@ -149,7 +193,7 @@ impl IfSome {
         }
         compile.write_var(expression, rust, &next)?;
         rust.code.push('{');
-        Ok(Self{local})
+        Ok(Self { local })
     }
 }
 
@@ -168,15 +212,27 @@ impl Block for IfSome {
 
 /// Handles with block compilation
 struct With {
-    local: Local
+    local: Local,
 }
 
 impl With {
     /// Creates a new with block
-    pub fn new<'a>(by_ref: bool, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Self> {
-        let next = token.next()?.ok_or_else(|| ParseError::new(
-            &format!("expected variable after with{}", if by_ref {"_ref"} else {""}), expression
-        ))?;
+    pub fn new<'a>(
+        by_ref: bool,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Self> {
+        let next = token.next()?.ok_or_else(|| {
+            ParseError::new(
+                &format!(
+                    "expected variable after with{}",
+                    if by_ref { "_ref" } else { "" }
+                ),
+                expression,
+            )
+        })?;
         let local = read_local(&next, expression)?;
         rust.code.push_str("{let ");
         compile.write_local(&mut rust.code, &local);
@@ -186,7 +242,7 @@ impl With {
         }
         compile.write_var(expression, rust, &next)?;
         rust.code.push(';');
-        Ok(Self{local})
+        Ok(Self { local })
     }
 }
 
@@ -202,15 +258,23 @@ struct WithFty {}
 
 impl BlockFactory for WithFty {
     /// Opens a with block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
+    fn open<'a>(
+        &self,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Box<dyn Block>> {
         let token_clone = token.clone();
         if let Some(var) = token_clone.next()? {
-             let var_name = var.value;
-             if let Some(type_str) = compile.variable_types.get(var_name) {
-                 if type_str.contains("Option") {
-                    return Ok(Box::new(IfSome::new(true, compile, token, expression, rust)?));
-                 }
-             }
+            let var_name = var.value;
+            if let Some(type_str) = compile.variable_types.get(var_name)
+                && type_str.contains("Option")
+            {
+                return Ok(Box::new(IfSome::new(
+                    true, compile, token, expression, rust,
+                )?));
+            }
         }
         Ok(Box::new(With::new(true, compile, token, expression, rust)?))
     }
@@ -220,26 +284,24 @@ impl BlockFactory for WithFty {
 struct Each {
     local: Local,
     indexer: Option<String>,
-    has_else: bool
+    has_else: bool,
 }
 
 /// Checks if a string contains an indexer expression at the given depth
 fn contains_indexer(src: &str, mut depth: i32) -> bool {
     match src.find("index") {
-        Some(pos) => {
-            match src[..pos].rfind('@') {
-                Some(start) => {
-                    let mut prefix = &src[start + 1 .. pos];
-                    while prefix.starts_with("../") {
-                        depth -= 1;
-                        prefix = &prefix[3 ..];
-                    }
-                    return depth == 0;
-                },
-                None => return false
+        Some(pos) => match src[..pos].rfind('@') {
+            Some(start) => {
+                let mut prefix = &src[start + 1..pos];
+                while prefix.starts_with("../") {
+                    depth -= 1;
+                    prefix = &prefix[3..];
+                }
+                depth == 0
             }
+            None => false,
         },
-        None => return false
+        None => false,
     }
 }
 
@@ -250,19 +312,23 @@ fn check_for_indexer(src: &str) -> Result<bool> {
     while let Some(expr) = &exp {
         match expr.expression_type {
             ExpressionType::Comment | ExpressionType::Escaped => continue,
-            ExpressionType::Open => if contains_indexer(expr.content, depth - 1) {
-                return Ok(true);
-            } else {
-                depth += 1;
-            },
+            ExpressionType::Open => {
+                if contains_indexer(expr.content, depth - 1) {
+                    return Ok(true);
+                } else {
+                    depth += 1;
+                }
+            }
             ExpressionType::Close => {
                 depth -= 1;
                 if depth == 0 {
                     return Ok(false);
                 }
-            },
-            _ => if contains_indexer(expr.content, depth - 1) {
-                return Ok(true);
+            }
+            _ => {
+                if contains_indexer(expr.content, depth - 1) {
+                    return Ok(true);
+                }
             }
         }
         exp = expr.next()?;
@@ -283,9 +349,11 @@ fn check_for_else(src: &str) -> Result<bool> {
                 if depth == 0 {
                     return Ok(false);
                 }
-            },
-            _ => if expr.content == "else" && depth == 1 {
-                return Ok(true);
+            }
+            _ => {
+                if expr.content == "else" && depth == 1 {
+                    return Ok(true);
+                }
             }
         }
         exp = expr.next()?;
@@ -295,55 +363,73 @@ fn check_for_else(src: &str) -> Result<bool> {
 
 impl Each {
     /// Creates a new each block
-    pub fn new<'a>(by_ref: bool, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Self>{
-        let next = match token.next()?{
+    pub fn new<'a>(
+        by_ref: bool,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Self> {
+        let next = match token.next()? {
             Some(next) => next,
-            None => return Err(ParseError::new(&format!("expected variable after {}", if by_ref{"each_ref"}else{"each"}), expression))
+            None => {
+                return Err(ParseError::new(
+                    &format!(
+                        "expected variable after {}",
+                        if by_ref { "each_ref" } else { "each" }
+                    ),
+                    expression,
+                ));
+            }
         };
-        let indexer = check_for_indexer(&expression.postfix).map(|found| match found{
+        let indexer = check_for_indexer(expression.postfix).map(|found| match found {
             true => {
                 let indexer = format!("i_{}", compile.open_stack.len());
                 rust.code.push_str("let mut ");
                 rust.code.push_str(indexer.as_str());
                 rust.code.push_str(" = 0;");
                 Some(indexer)
-            },
-            false => None
+            }
+            false => None,
         })?;
         let local = read_local(&next, expression)?;
-        let has_else = check_for_else(&expression.postfix)?;
-        if has_else{
+        let has_else = check_for_else(expression.postfix)?;
+        if has_else {
             rust.code.push_str("{let mut empty = true;");
         }
         rust.code.push_str("for ");
         compile.write_local(&mut rust.code, &local);
         rust.code.push_str(" in ");
-        if by_ref{
+        if by_ref {
             rust.code.push('&');
         }
         compile.write_var(expression, rust, &next)?;
         rust.code.push('{');
-        if has_else{
+        if has_else {
             rust.code.push_str("empty = false;");
         }
-        Ok(Self{
+        Ok(Self {
             local,
             indexer,
-            has_else
+            has_else,
         })
     }
     /// Writes a map variable access
-    fn write_map_var<'a>(&self, depth: usize, suffix: &str, rust: &mut Rust) {
-        append_with_depth(depth, if let Local::As(name) = &self.local {
-            name.as_str()
-        } else {
-            "this"
-        }, &mut rust.code);
+    fn write_map_var(&self, depth: usize, suffix: &str, rust: &mut Rust) {
+        append_with_depth(
+            depth,
+            if let Local::As(name) = &self.local {
+                name.as_str()
+            } else {
+                "this"
+            },
+            &mut rust.code,
+        );
         rust.code.push_str(suffix)
     }
 
     /// Writes an indexer increment
-    fn write_indexer<'a>(&self, rust: &mut Rust) {
+    fn write_indexer(&self, rust: &mut Rust) {
         if let Some(indexer) = &self.indexer {
             rust.code.push_str(indexer);
             rust.code.push_str("+=1;");
@@ -351,27 +437,35 @@ impl Each {
     }
 }
 
-impl Block for Each{
+impl Block for Each {
     fn handle_else<'a>(&self, _expression: &'a Expression<'a>, rust: &mut Rust) -> Result<()> {
         self.write_indexer(rust);
         rust.code.push_str("} if empty {");
         Ok(())
     }
 
-    fn resolve_private<'a>(&self, depth: usize, expression: &'a Expression<'a>, name: &str, rust: &mut Rust) -> Result<()>{
-        Ok(match name{
-            "index" => rust.code.push_str(&self.indexer.as_ref().unwrap()),
+    fn resolve_private<'a>(
+        &self,
+        depth: usize,
+        expression: &'a Expression<'a>,
+        name: &str,
+        rust: &mut Rust,
+    ) -> Result<()> {
+        Ok(match name {
+            "index" => rust.code.push_str(self.indexer.as_ref().unwrap()),
             "key" => self.write_map_var(depth, ".0", rust),
             "value" => self.write_map_var(depth, ".1", rust),
-            _ => Err(ParseError::new(&format!("unexpected variable {}", name), expression))?
+            _ => Err(ParseError::new(
+                &format!("unexpected variable {}", name),
+                expression,
+            ))?,
         })
     }
 
     fn handle_close<'a>(&self, rust: &mut Rust) {
-        if self.has_else{
+        if self.has_else {
             rust.code.push_str("}}");
-        }
-        else{
+        } else {
             self.write_indexer(rust);
             rust.code.push('}');
         }
@@ -387,15 +481,21 @@ struct EachFty {}
 
 impl BlockFactory for EachFty {
     /// Opens an each block
-    fn open<'a>(&self, compile: &'a Compile<'a>, token: Token<'a>, expression: &'a Expression<'a>, rust: &mut Rust) -> Result<Box<dyn Block>> {
+    fn open<'a>(
+        &self,
+        compile: &'a Compile<'a>,
+        token: Token<'a>,
+        expression: &'a Expression<'a>,
+        rust: &mut Rust,
+    ) -> Result<Box<dyn Block>> {
         Ok(Box::new(Each::new(true, compile, token, expression, rust)?))
     }
 }
 
-const IF: IfFty = IfFty{};
-const UNLESS: UnlessFty = UnlessFty{};
-const WITH: WithFty = WithFty{};
-const EACH: EachFty = EachFty{};
+const IF: IfFty = IfFty {};
+const UNLESS: UnlessFty = UnlessFty {};
+const WITH: WithFty = WithFty {};
+const EACH: EachFty = EachFty {};
 
 /// Adds built-in block helpers to the block map
 pub fn add_builtins(map: &mut BlockMap) {

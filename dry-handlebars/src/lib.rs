@@ -237,7 +237,6 @@ mod tests {
         assert_eq!(template::test(12.2345f64).render(), "Price: $12.23");
     }
 
-
     // #[test]
     // fn test_nesting() {
     //     let rust = compile("{{#if some}}{{#each some}}Hello {{this}}{{/each}}{{/if}}");
@@ -329,5 +328,4 @@ mod tests {
     //         "write!(f, \"<script>if (location.href.contains(\\\"localhost\\\")){{ console.log(\\\"{{{{}}}}\\\") }}</script>\")?;"
     //     );
     // }
-
 }

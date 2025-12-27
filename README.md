@@ -46,3 +46,18 @@ Still in alpha stage, only a subset of handlebars functionality is supported. Sp
 - If helpers (e.g. `{{#if ...}} ... {{/if}}`) -> Fields must be `Option<T>`
 - If/else helpers (e.g. `{{#if ...}} xxx {{ else }} yyy {{/if}}`) -> Fields must be `Option<T>`
 - For loops (e.g. `{{#each items}} ... {{/each}}`) -> Fields must be iterable via the trait `IntoIterator`
+
+
+### Development
+
+```shell
+cargo fmt 
+```
+
+```shell
+cargo clippy 
+```
+
+```shell
+cargo test 
+```

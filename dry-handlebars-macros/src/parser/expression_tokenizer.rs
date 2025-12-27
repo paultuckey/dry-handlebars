@@ -1,17 +1,17 @@
 // MIT License
-// 
+//
 // Copyright (c) 2024 Jerome Johnson
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -32,14 +32,14 @@
 //!
 //! ## Literals
 //! Plain text values that are not special tokens:
-//! ```
+//! ```handlebars
 //! name
 //! user.age
 //! ```
 //!
 //! ## Private Variables
 //! Variables prefixed with @ that have special meaning:
-//! ```
+//! ```handlebars
 //! @index
 //! @key
 //! @value
@@ -47,15 +47,15 @@
 //!
 //! ## Sub-expressions
 //! Parenthesized expressions that are evaluated first:
-//! ```
+//! ```handlebars
 //! (helper arg1 arg2)
 //! (math.add 1 2)
 //! ```
 //!
 //! # Examples
 //!
-//! ```rust
-//! use rusty_handlebars_parser::expression_tokenizer::{Token, TokenType};
+//! ```ignore
+//! use expression_tokenizer::{Token, TokenType};
 //!
 //! let src = "user.name (helper arg) @index";
 //! let token = Token::first(src).unwrap().unwrap();
@@ -63,7 +63,7 @@
 //! assert_eq!(token.token_type, TokenType::Literal);
 //! ```
 
-use crate::parser::error::{rcap, ParseError, Result};
+use crate::parser::error::{ParseError, Result, rcap};
 
 /// Types of tokens that can be parsed from an expression
 #[derive(Clone)]
@@ -74,7 +74,7 @@ pub enum TokenType<'a> {
     PrivateVariable,
     Variable,
     /// A plain text literal
-    Literal
+    Literal,
 }
 
 /// A token parsed from an expression
@@ -85,7 +85,7 @@ pub struct Token<'a> {
     /// The token's value
     pub value: &'a str,
     /// The remaining text after this token
-    pub tail: &'a str
+    pub tail: &'a str,
 }
 
 /// Finds the closing parenthesis for a sub-expression
@@ -96,13 +96,15 @@ fn find_closing(src: &str) -> Result<usize> {
         match c {
             '(' => count += 1,
             ')' => count -= 1,
-            _ => ()
+            _ => (),
         }
         if count == 0 {
             return Ok(i + 1);
         }
     }
-    Err(ParseError{ message: format!("unmatched brackets near {}", rcap(src))})
+    Err(ParseError {
+        message: format!("unmatched brackets near {}", rcap(src)),
+    })
 }
 
 fn find_end_of_string(src: &str) -> Result<usize> {
@@ -116,27 +118,33 @@ fn find_end_of_string(src: &str) -> Result<usize> {
                     return Ok(i + 2);
                 }
             }
-            _ => ()
+            _ => (),
         }
     }
-    Err(ParseError{ message: format!("unterminated string near {}", rcap(src))})
+    Err(ParseError {
+        message: format!("unterminated string near {}", rcap(src)),
+    })
 }
 
 /// Finds the end of a token by looking for whitespace or special characters
 fn find_end(src: &str) -> usize {
     for (i, c) in src.char_indices() {
         if " (\n\r\t".contains(c) {
-            return i
+            return i;
         }
     }
     src.len()
 }
 
 fn invalid_variable_name(src: &str) -> bool {
-    if src.starts_with("../"){
+    if src.starts_with("../") {
         return false; // ../ is valid for relative paths
     }
-    return src.chars().next().map(|c| !(c.is_alphabetic() || c == '_')).unwrap_or(false)
+    src
+        .chars()
+        .next()
+        .map(|c| !(c.is_alphabetic() || c == '_'))
+        .unwrap_or(false)
 }
 
 /// Parses a single token from the input string
@@ -147,28 +155,35 @@ fn parse<'a>(src: &'a str) -> Result<Option<Token<'a>>> {
             Some(Token {
                 token_type: TokenType::PrivateVariable,
                 value: &src[1..end],
-                tail: &src[end..].trim_start()
+                tail: src[end..].trim_start(),
             })
-        },
+        }
         Some('(') => {
-            let end = find_closing(&src)?;
+            let end = find_closing(src)?;
             Some(Token {
                 token_type: TokenType::SubExpression(&src[..end]),
                 value: &src[1..end],
-                tail: &src[end + 1..].trim_start()
+                tail: src[end + 1..].trim_start(),
             })
-        },
+        }
         None => None,
         _ => {
             let (end, token_type) = if src.starts_with('"') {
                 (find_end_of_string(src)?, TokenType::Literal)
             } else {
-                (find_end(src), if invalid_variable_name(src) { TokenType::Literal } else { TokenType::Variable })
+                (
+                    find_end(src),
+                    if invalid_variable_name(src) {
+                        TokenType::Literal
+                    } else {
+                        TokenType::Variable
+                    },
+                )
             };
             Some(Token {
                 token_type,
                 value: &src[..end],
-                tail: &src[end..].trim_start()
+                tail: src[end..].trim_start(),
             })
         }
     })
@@ -185,4 +200,3 @@ impl<'a> Token<'a> {
         parse(self.tail)
     }
 }
-

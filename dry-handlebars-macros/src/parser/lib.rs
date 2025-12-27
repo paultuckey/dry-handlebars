@@ -42,7 +42,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```ignore
 //! use compiler::{Compiler, Options, BlockMap};
 //! use block::add_builtins;
 //!
